@@ -203,6 +203,7 @@ function grafico(id, labels, datasets, o = {}) {
   const eixo = (pos, f) => ({ position: pos, beginAtZero: true, grid: { color: pos === 'left' ? cor('--grid') : 'transparent' }, border: { display: false }, ticks: { color: cor('--muted'), callback: v => f(v), maxTicksLimit: 6 } });
   const scales = { x: { grid: { display: false }, border: { color: cor('--axis') }, ticks: { color: cor('--muted'), maxRotation: 0, autoSkip: true } }, y: eixo('left', fmt) };
   if (o.fmt2) scales.y2 = eixo('right', o.fmt2);
+  if (o.max) scales.y.max = o.max;
   charts[id] = new Chart(el, {
     type: 'bar', data: { labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
@@ -312,7 +313,7 @@ function viewVendedor() {
   const correndo = iv.ini <= hoje && hoje <= iv.fim;
   const esperado = correndo ? metaIntervalo(eu.meta, iv.ini, hoje) : null;
   const ivAnt = intervalo(tipo, hoje, S.desloc - 1), nAnt = doPer(ivAnt.ini, ivAnt.fim).length;
-  // minhas metas mínimas da semana e do mês atuais
+  // minhas metas da semana e do mês atuais
   const sem = intervalo('semana', hoje, 0), mesI = intervalo('mes', hoje, 0);
   const metaSem = metaIntervalo(eu.meta, sem.ini, sem.fim), feitasSem = doPer(sem.ini, sem.fim).length;
   const feitasMes = doPer(mesI.ini, mesI.fim).length;
@@ -328,7 +329,7 @@ function viewVendedor() {
   const diasMes = []; for (let s = mesI.ini; s <= mesI.fim; s = addDias(s, 1)) diasMes.push(s);
 
   $('#app').innerHTML = `<div class="cab"><div><h1>Olá, ${esc(eu.nome.split(' ')[0])}</h1>
-      <div class="sub">Suas intermediações e metas · atualizado em ${dataBR(hoje)} · ${esc(eu.fonteMeta)}</div></div>
+      <div class="sub">Suas vendas e metas · atualizado em ${dataBR(hoje)} · ${eu.meta ? `sua meta: ${dec(eu.meta)} vendas por mês` : esc(eu.fonteMeta)}</div></div>
       <span class="esp"></span>
       <button class="btn" onclick="sair()">Sair</button></div>
     <div class="tiles">
@@ -336,9 +337,9 @@ function viewVendedor() {
         <div class="t-v">${int(eqMes.length)} <span class="t-of">/ mín. ${int(minima)} · meta ${int(geral)}</span></div>
         <div class="bar"><span style="width:${geral ? Math.min(100, eqMes.length / geral * 100) : 0}%"></span>${geral ? `<i style="left:calc(${Math.min(100, minima / geral * 100)}% - 1px)" title="Meta mínima"></i>` : ''}</div>
         <div class="t-s"><span class="st st-${stEq.c}">${stEq.t}</span>${faltaEq ? `<span>faltam ${int(faltaEq)} p/ mínima · ${int(restam)} dias úteis</span>` : ''}</div></div>
-      ${tileMeta('Minha meta mínima da semana', feitasSem, metaSem, metaIntervalo(eu.meta, sem.ini, hoje), `<span>${esc(sem.rot)}</span>`)}
-      ${tileMeta('Minha meta mínima do mês', feitasMes, eu.meta, metaIntervalo(eu.meta, mesI.ini, hoje), `<span>${esc(mesI.rot)}</span>`)}
-      ${tile(`Minha comissão em ${MESES[+hoje.slice(5, 7) - 1]} até agora`, brl(comMes), `${int(feitasMes)} intermediação(ões) · conforme lançado pelo gestor`)}
+      ${tileMeta('Minhas vendas na semana', feitasSem, metaSem, metaIntervalo(eu.meta, sem.ini, hoje), `<span>${esc(sem.rot)}</span>`)}
+      ${tileMeta('Minhas vendas no mês', feitasMes, eu.meta, metaIntervalo(eu.meta, mesI.ini, hoje), `<span>${esc(mesI.rot)}</span>`)}
+      ${tile(`Minha comissão em ${MESES[+hoje.slice(5, 7) - 1]} até agora`, brl(comMes), `${int(feitasMes)} venda(s) · conforme lançado pelo gestor`)}
     </div>
     ${eu.semVendedor ? `<div class="dica">${int(eu.semVendedor)} intermediação(ões) do mês ainda sem vendedor atribuído pelo gestor: contam para a equipe, mas ainda não aparecem no nome de ninguém.</div>` : ''}
     <div class="cab" style="margin-bottom:16px">
@@ -347,39 +348,48 @@ function viewVendedor() {
       <div class="nav"><button class="btn" onclick="andar(-1)" aria-label="Período anterior">‹</button><b>${esc(iv.rot)}</b><button class="btn" onclick="andar(1)" aria-label="Próximo período" ${S.desloc >= 0 ? 'disabled' : ''}>›</button></div>
     </div>
     <div class="tiles">
-      ${tileMeta('Minhas intermediações no período', vs.length, meta, esperado)}
+      ${tileMeta('Minhas vendas', vs.length, meta, esperado)}
       ${tile('Período anterior', int(nAnt), `${esc(ivAnt.rot)} · ${vs.length > nAnt ? `<span class="st st-good">+${int(vs.length - nAnt)} agora</span>` : vs.length < nAnt ? `<span class="st st-crit">−${int(nAnt - vs.length)} agora</span>` : 'igual'}`)}
-      ${tile('Minha comissão no período', brl(comPer), vs.length ? `média de ${brl(comPer / vs.length)} por intermediação` : '')}
-      ${tile('Adicionais vendidos', int(soma(vs, v => v.adicionais.length)), 'Despachante, seguros, troca, financiamento')}
+      ${tile('Minha comissão no período', brl(comPer), vs.length ? `média de ${brl(comPer / vs.length)} por venda` : '')}
     </div>
     <div class="grid">
-      ${card('gEvo', 'Minha evolução', tipo === 'dia' ? 'Últimos 14 dias · intermediações por dia x meta mínima diária' : `${esc(iv.rot)} · por ${tipo === 'trimestre' ? 'semana' : tipo === 'semestre' || tipo === 'ano' ? 'mês' : 'dia'}, acumulado x meta mínima acumulada`)}
-      ${card('gHist', `Meus últimos 6 períodos (${PERIODOS[tipo].toLowerCase()})`, 'Intermediações x meta mínima de cada período')}
+      ${card('gEvo', 'Minha evolução', tipo === 'dia' ? 'Últimos 14 dias · vendas por dia x meta do dia' : `${esc(iv.rot)} · vendas por ${tipo === 'trimestre' ? 'semana' : tipo === 'semestre' || tipo === 'ano' ? 'mês' : 'dia'} e total acumulado x caminho até a meta de ${dec(meta)}`)}
+      ${card('gHist', `Meus últimos 6 períodos (${PERIODOS[tipo].toLowerCase()})`, 'Vendas x meta de cada período')}
     </div>
-    <div class="grid">${card('gEq', 'Equipe no mês', 'Intermediações acumuladas da equipe x ritmo para a mínima e para a meta geral', 'full')}</div>
-    <div class="card full"><h3>Minhas intermediações no período</h3><p class="sub">Vendas atribuídas a você pelo gestor · comissão = valor fixo por venda + adicionais marcados</p>
-      ${vs.length ? `<div class="tab"><table><thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th>Adicionais</th><th class="n">Comissão</th></tr></thead><tbody>
-        ${vs.map(v => `<tr><td>${dataBR(v.data)}</td><td>${esc(v.veiculo)} <span style="color:var(--muted)">${esc(v.placa)}</span></td><td>${esc(v.tipo)}</td><td>${esc(v.adicionais.join(', ') || '—')}</td><td class="n">${brl(v.comissao)}</td></tr>`).join('')}
-      </tbody></table></div>` : '<div class="vazio">Nenhuma intermediação neste período.</div>'}</div>`;
+    <div class="card full"><h3>Minhas vendas e comissões no período</h3><p class="sub">Cada carro vendido com o valor de cada item da sua comissão · valores definidos pelo gestor</p>
+      ${tabelaComissao(vs, eu.regras)}</div>`;
 
   const cont = f => doPer(f.ini, f.fim).length;
   if (tipo === 'dia') {
-    grafico('gEvo', fs.map(f => f.rot), [{ label: 'Intermediações', data: fs.map(cont) },
-      { type: 'line', label: 'Meta mínima do dia', data: fs.map(f => metaIntervalo(eu.meta, f.ini, f.fim)), borderDash: [5, 4] }], { fmt: dec });
+    grafico('gEvo', fs.map(f => f.rot), [{ label: 'Vendas', data: fs.map(cont) },
+      { type: 'line', label: 'Meta do dia', data: fs.map(f => metaIntervalo(eu.meta, f.ini, f.fim)), borderDash: [5, 4] }], { fmt: dec });
   } else {
+    // a régua vai só até a meta do período (ou até o total, se passar dela)
     let a = 0;
-    grafico('gEvo', fs.map(f => f.rot), [{ label: 'Intermediações', data: fs.map(cont) },
-      { type: 'line', label: 'Acumulado', data: fs.map(f => f.ini > hoje ? null : (a += cont(f))), borderColor: cor('--s1'), backgroundColor: cor('--s1') },
-      { type: 'line', label: 'Meta mínima acumulada', data: fs.map(f => metaIntervalo(eu.meta, iv.ini, f.fim)), borderDash: [5, 4] }], { fmt: dec });
+    const acum = fs.map(f => f.ini > hoje ? null : (a += cont(f)));
+    grafico('gEvo', fs.map(f => f.rot), [{ label: 'Vendas', data: fs.map(cont) },
+      { type: 'line', label: 'Total acumulado', data: acum, borderColor: cor('--s1'), backgroundColor: cor('--s1') },
+      { type: 'line', label: `Caminho até a meta (${dec(meta)})`, data: fs.map(f => metaIntervalo(eu.meta, iv.ini, f.fim)), borderDash: [5, 4] }],
+      { fmt: dec, max: Math.ceil(Math.max(meta, a)) });
   }
-  grafico('gHist', hist.map(h => h.rot), [{ label: 'Intermediações', data: hist.map(cont) },
-    { type: 'line', label: 'Meta mínima', data: hist.map(h => metaIntervalo(eu.meta, h.ini, h.fim)), borderDash: [5, 4], pointRadius: 3 }], { fmt: dec });
-  let ac = 0;
-  grafico('gEq', diasMes.map(s => s.slice(8)), [
-    { label: 'No dia', data: diasMes.map(s => eqMes.filter(d => d === s).length) },
-    { type: 'line', label: 'Acumulado', data: diasMes.map(s => s <= hoje ? (ac += eqMes.filter(d => d === s).length) : null), borderColor: cor('--s1'), backgroundColor: cor('--s1') },
-    { type: 'line', label: 'Ritmo mínima', data: diasMes.map(s => minima * diasUteis(mesI.ini, s) / uMes), borderDash: [5, 4] },
-    { type: 'line', label: 'Ritmo meta geral', data: diasMes.map(s => geral * diasUteis(mesI.ini, s) / uMes), borderDash: [2, 3], borderColor: cor('--muted'), backgroundColor: cor('--muted') }], { fmt: dec });
+  grafico('gHist', hist.map(h => h.rot), [{ label: 'Vendas', data: hist.map(cont) },
+    { type: 'line', label: 'Meta', data: hist.map(h => metaIntervalo(eu.meta, h.ini, h.fim)), borderDash: [5, 4], pointRadius: 3 }], { fmt: dec });
+}
+
+// cada carro vendido com o valor de cada item da comissão (valor fixo + adicionais marcados pelo gestor)
+function tabelaComissao(vs, regras) {
+  if (!vs.length) return '<div class="vazio">Nenhuma venda neste período.</div>';
+  regras = regras || { fixo: 0, adicionais: {} };
+  const ADIC = ['Despachante', 'Seguro Gestauto', 'Seguro auto', 'Carro na troca', 'Financiamento'];
+  const cols = ADIC.filter(a => (regras.adicionais[a] || 0) > 0 || vs.some(v => v.adicionais.includes(a)));
+  const valor = (v, a) => v.adicionais.includes(a) ? (regras.adicionais[a] || 0) : null;
+  const cel = x => x == null ? '<span style="color:var(--muted)">—</span>' : brl(x);
+  const linhas = vs.map(v => `<tr><td>${dataBR(v.data)}</td><td>${esc(v.veiculo)}<div style="color:var(--muted);font-size:12px">${esc(v.placa)}${v.tipo ? ' · ' + esc(v.tipo) : ''}</div></td>
+    <td class="n">${brl(regras.fixo)}</td>${cols.map(a => `<td class="n">${cel(valor(v, a))}</td>`).join('')}<td class="n"><b>${brl(v.comissao)}</b></td></tr>`).join('');
+  const total = `<tr style="border-top:2px solid var(--axis)"><td colspan="2"><b>Total (${int(vs.length)} venda${vs.length > 1 ? 's' : ''})</b></td>
+    <td class="n"><b>${brl(regras.fixo * vs.length)}</b></td>${cols.map(a => `<td class="n"><b>${brl(soma(vs, v => valor(v, a)))}</b></td>`).join('')}<td class="n"><b>${brl(soma(vs, v => v.comissao))}</b></td></tr>`;
+  return `<div class="tab"><table><thead><tr><th>Data</th><th>Veículo</th><th class="n">Venda</th>${cols.map(a => `<th class="n">${esc(a)}</th>`).join('')}<th class="n">Comissão</th></tr></thead>
+    <tbody>${linhas}${total}</tbody></table></div>`;
 }
 
 // ================= prévia (fora do Google) =================
@@ -394,7 +404,8 @@ const DEMO = (() => {
   return {
     portalGeral: () => ({ equipe }),
     entrarVendedor: (nome, chave) => { if (String(chave) !== '1234') throw new Error('Chave incorreta. (Na prévia, use 1234.)');
-      return { nome, hoje, meta: 25 / 4, fonteMeta: 'Meta mínima da equipe dividida por 4', metas: { minima: 25, geral: 30 }, semVendedor: 2,
+      return { nome, hoje, meta: 15, fonteMeta: 'Meta individual', metas: { minima: 25, geral: 30 }, semVendedor: 2,
+        regras: { fixo: 300, adicionais: { 'Despachante': 80, 'Seguro Gestauto': 80, 'Seguro auto': 0, 'Carro na troca': 0, 'Financiamento': 80 } },
         equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome] }; }
   };
 })();
