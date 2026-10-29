@@ -319,6 +319,9 @@ function viewVendedor() {
   const feitasMes = doPer(mesI.ini, mesI.fim).length;
   // comissão: só das vendas do próprio vendedor, com os valores e adicionais que o gestor definiu
   const comMes = soma(doPer(mesI.ini, hoje), v => v.comissao), comPer = soma(vs, v => v.comissao);
+  // bonificação do mês pela meta individual: vale a maior faixa atingida
+  const faixas = eu.bonus || [], faixa = faixas.filter(f => feitasMes >= f.vendas).pop(), prox = faixas.find(f => feitasMes < f.vendas);
+  const bonusMes = faixa ? faixa.valor : 0;
   // equipe no mês atual
   const { minima, geral } = eu.metas;
   const eqMes = eu.equipe.filter(d => d >= mesI.ini && d <= mesI.fim), uMes = diasUteis(mesI.ini, mesI.fim), passados = diasUteis(mesI.ini, hoje);
@@ -339,7 +342,12 @@ function viewVendedor() {
         <div class="t-s"><span class="st st-${stEq.c}">${stEq.t}</span>${faltaEq ? `<span>faltam ${int(faltaEq)} p/ mínima · ${int(restam)} dias úteis</span>` : ''}</div></div>
       ${tileMeta('Minhas vendas na semana', feitasSem, metaSem, metaIntervalo(eu.meta, sem.ini, hoje), `<span>${esc(sem.rot)}</span>`)}
       ${tileMeta('Minhas vendas no mês', feitasMes, eu.meta, metaIntervalo(eu.meta, mesI.ini, hoje), `<span>${esc(mesI.rot)}</span>`)}
-      ${tile(`Minha comissão em ${MESES[+hoje.slice(5, 7) - 1]} até agora`, brl(comMes), `${int(feitasMes)} venda(s) · conforme lançado pelo gestor`)}
+      ${tile(`Meus rendimentos em ${MESES[+hoje.slice(5, 7) - 1]} até agora`, brl(comMes + bonusMes), `comissão ${brl(comMes)} + bônus ${brl(bonusMes)} · conforme lançado pelo gestor`)}
+      ${faixas.length ? `<div class="tile"><div class="t-l">Bonificação do mês</div>
+        <div class="t-v">${brl(bonusMes)}</div>
+        <div class="bar"><span style="width:${Math.min(100, feitasMes / faixas[faixas.length - 1].vendas * 100)}%;background:var(--s3)"></span>${faixas.map(f => `<i style="left:calc(${f.vendas / faixas[faixas.length - 1].vendas * 100}% - 1px)" title="${f.vendas} vendas = ${brl(f.valor)}"></i>`).join('')}</div>
+        <div class="t-s">${prox ? `<span class="st st-warn">faltam ${int(prox.vendas - feitasMes)} venda(s) para ${brl(prox.valor)}</span>` : '<span class="st st-good">Bônus máximo atingido</span>'}</div>
+        <div class="t-s">${faixas.map(f => `${f.vendas} vendas = ${brl(f.valor)}`).join(' · ')}</div></div>` : ''}
     </div>
     ${eu.semVendedor ? `<div class="dica">${int(eu.semVendedor)} intermediação(ões) do mês ainda sem vendedor atribuído pelo gestor: contam para a equipe, mas ainda não aparecem no nome de ninguém.</div>` : ''}
     <div class="cab" style="margin-bottom:16px">
@@ -379,10 +387,11 @@ function viewVendedor() {
 // cada carro vendido com o valor de cada item da comissão (valor fixo + adicionais marcados pelo gestor)
 function tabelaComissao(vs, regras) {
   if (!vs.length) return '<div class="vazio">Nenhuma venda neste período.</div>';
-  regras = regras || { fixo: 0, adicionais: {} };
+  regras = regras || { fixo: 0 };
   const ADIC = ['Despachante', 'Seguro Gestauto', 'Seguro auto', 'Carro na troca', 'Financiamento'];
-  const cols = ADIC.filter(a => (regras.adicionais[a] || 0) > 0 || vs.some(v => v.adicionais.includes(a)));
-  const valor = (v, a) => v.adicionais.includes(a) ? (regras.adicionais[a] || 0) : null;
+  // valor de cada adicional lançado pelo gestor naquela venda (muda de carro para carro)
+  const valor = (v, a) => { const x = v.valores ? v.valores[a] : 0; return x > 0 ? x : null; };
+  const cols = ADIC.filter(a => vs.some(v => valor(v, a) != null));
   const cel = x => x == null ? '<span style="color:var(--muted)">—</span>' : brl(x);
   const linhas = vs.map(v => `<tr><td>${dataBR(v.data)}</td><td>${esc(v.veiculo)}<div style="color:var(--muted);font-size:12px">${esc(v.placa)}${v.tipo ? ' · ' + esc(v.tipo) : ''}</div></td>
     <td class="n">${brl(regras.fixo)}</td>${cols.map(a => `<td class="n">${cel(valor(v, a))}</td>`).join('')}<td class="n"><b>${brl(v.comissao)}</b></td></tr>`).join('');
@@ -400,12 +409,12 @@ const DEMO = (() => {
   const vendas = {};
   equipe.forEach(n => { vendas[n] = []; for (let k = 0; k < ri(30, 60); k++) vendas[n].push({ data: addDias(hoje, -ri(0, 400)), veiculo: pick(carros), placa: 'ABC-' + ri(1000, 9999),
     tipo: pick(['C2C', 'Turbo', 'Trade-in']), adicionais: ['Despachante', 'Seguro Gestauto', 'Financiamento'].filter(() => r() < 0.3) }); });
-  Object.values(vendas).flat().forEach(v => { v.comissao = 300 + v.adicionais.length * 80; });
+  Object.values(vendas).flat().forEach(v => { v.valores = Object.fromEntries(v.adicionais.map(a => [a, pick([100, 150, 200, 300])])); v.comissao = 300 + soma(Object.values(v.valores), x => x); });
   return {
     portalGeral: () => ({ equipe }),
     entrarVendedor: (nome, chave) => { if (String(chave) !== '1234') throw new Error('Chave incorreta. (Na prévia, use 1234.)');
       return { nome, hoje, meta: 15, fonteMeta: 'Meta individual', metas: { minima: 25, geral: 30 }, semVendedor: 2,
-        regras: { fixo: 300, adicionais: { 'Despachante': 80, 'Seguro Gestauto': 80, 'Seguro auto': 0, 'Carro na troca': 0, 'Financiamento': 80 } },
+        regras: { fixo: 300 }, bonus: [{ vendas: 10, valor: 300 }, { vendas: 15, valor: 800 }, { vendas: 20, valor: 1200 }],
         equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome] }; }
   };
 })();
