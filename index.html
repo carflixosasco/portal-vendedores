@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendas do mês · Carflix Osasco</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f5f7; --card: #ffffff; --surface: #fcfcfb;
+  --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10);
+  --brand: #1f3a5f; --brand-ink: #ffffff; --brand-soft: #e8eef6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --good: #0ca30c; --good-ink: #006300; --warn: #fab219; --crit: #d03b3b;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0d; --card: #1a1a19; --surface: #1a1a19;
+    --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+    --brand: #3987e5; --brand-ink: #0d0d0d; --brand-soft: #1c2533;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good-ink: #0ca30c; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --card: #1a1a19; --surface: #1a1a19;
+  --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+  --brand: #3987e5; --brand-ink: #0d0d0d; --brand-soft: #1c2533;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --good-ink: #0ca30c; --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+.top { display: flex; align-items: center; gap: 12px; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+.marca { display: flex; align-items: center; gap: 10px; font-weight: 700; cursor: pointer; background: none; border: 0; padding: 0; }
+.marca .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: var(--brand-ink); display: grid; place-items: center; }
+.top .esp { flex: 1; }
+.chip { font-size: 13px; color: var(--ink2); }
+.btn { border: 1px solid var(--border); background: var(--card); border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+.btn:hover { background: var(--brand-soft); }
+.btn.pri { background: var(--brand); color: var(--brand-ink); border-color: transparent; font-weight: 600; }
+main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+.cab { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 20px; margin-bottom: 20px; }
+.cab h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+.cab .sub { color: var(--ink2); font-size: 14px; margin-top: 2px; }
+.cab .esp { flex: 1; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.tile { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+.t-l { font-size: 13px; color: var(--ink2); }
+.t-v { font-size: 26px; font-weight: 650; margin-top: 4px; letter-spacing: -.01em; }
+.t-of { font-size: 15px; color: var(--muted); font-weight: 400; }
+.t-s { font-size: 12px; color: var(--ink2); margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bar { position: relative; height: 8px; border-radius: 4px; background: var(--grid); margin-top: 10px; }
+.bar > span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--s1); }
+.bar > i { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink2); border-radius: 1px; }
+.st { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.st::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.st-good { color: var(--good-ink); } .st-good::before { background: var(--good); }
+.st-warn { color: var(--ink2); } .st-warn::before { background: var(--warn); }
+.st-crit { color: var(--crit); } .st-crit::before { background: var(--crit); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+.card h3 { margin: 0; font-size: 15px; }
+.card .sub { margin: 2px 0 12px; font-size: 12px; color: var(--muted); }
+.ch { position: relative; height: 260px; }
+.full { grid-column: 1 / -1; }
+.tab { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 600; color: var(--ink2); border-bottom: 1px solid var(--axis); padding: 8px 10px; white-space: nowrap; }
+td { border-bottom: 1px solid var(--grid); padding: 8px 10px; vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.vazio { color: var(--muted); font-size: 13px; padding: 12px 0; }
+.carregando { text-align: center; padding: 80px 0; color: var(--muted); }
+
+/* equipe na página geral */
+.equipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.pessoa { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 6px; transition: border-color .12s, transform .12s; }
+.pessoa:hover { border-color: var(--brand); transform: translateY(-1px); }
+.pessoa .nm { font-weight: 650; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.pessoa .ir { color: var(--brand); font-weight: 600; font-size: 13px; margin-top: 4px; }
+.pos { width: 26px; height: 26px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 13px; }
+
+/* períodos */
+.periodos { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 3px; gap: 2px; }
+.periodos button { border: 0; background: none; padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--ink2); }
+.periodos button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.nav { display: inline-flex; align-items: center; gap: 8px; }
+.nav b { min-width: 170px; text-align: center; font-size: 14px; }
+
+/* chave */
+.box { background: var(--card); border-radius: 14px; padding: 28px; max-width: 400px; margin: 40px auto; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.box h2 { margin: 0 0 4px; }
+.box p { margin: 0 0 16px; color: var(--ink2); font-size: 14px; }
+.box label { display: block; font-size: 13px; color: var(--ink2); margin: 12px 0 4px; }
+.box input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 18px; letter-spacing: .2em; }
+.box .lembrar { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; color: var(--ink2); }
+.box .acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.erro { color: var(--crit); font-size: 13px; margin-top: 10px; min-height: 1em; }
+.dica { font-size: 13px; color: var(--ink2); background: var(--brand-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
+
+@media (max-width: 640px) {
+  main { padding: 16px; }
+  .top { padding: 10px 16px; }
+  .grid { grid-template-columns: 1fr; }
+  .nav b { min-width: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="marca" onclick="irGeral()" aria-label="Página geral">
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18M5 17l1.5-5h11L19 17M7.5 12l1.2-3.5h6.6L16.5 12"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg></span>
+    Vendas · Carflix Osasco
+  </button>
+  <span class="esp"></span>
+  <span class="chip" id="chip"></span>
+</header>
+<main id="app"><div class="carregando">Carregando…</div></main>
+
+<script>
+// ================= utilidades =================
+const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl = v => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const int = v => (v || 0).toLocaleString('pt-BR');
+const dec = v => isFinite(v) ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—';
+const pct = v => isFinite(v) ? Math.round(v * 100) + '%' : '—';
+const soma = (a, f) => a.reduce((s, x) => s + (f(x) || 0), 0);
+const dataBR = d => d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : '';
+const D = s => new Date(s + 'T12:00');
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const addDias = (s, n) => { const d = D(s); d.setDate(d.getDate() + n); return iso(d); };
+const fimMes = (y, m) => iso(new Date(y, m + 1, 0, 12));
+const cor = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+
+// dias de trabalho = segunda a sábado
+const util = s => D(s).getDay() !== 0;
+function diasUteis(ini, fim) { let n = 0; for (let s = ini; s <= fim; s = addDias(s, 1)) if (util(s)) n++; return n; }
+// meta de um intervalo = meta mensal proporcional aos dias úteis de cada mês tocado
+function metaIntervalo(metaMes, ini, fim) {
+  if (!metaMes) return 0;
+  let total = 0, s = ini;
+  while (s <= fim) {
+    const d = D(s), ultimo = fimMes(d.getFullYear(), d.getMonth()), ate = ultimo < fim ? ultimo : fim;
+    const uMes = diasUteis(iso(new Date(d.getFullYear(), d.getMonth(), 1, 12)), ultimo);
+    total += uMes ? metaMes * diasUteis(s, ate) / uMes : 0;
+    s = addDias(ate, 1);
+  }
+  return total;
+}
+
+// ================= servidor (Apps Script) ou prévia =================
+// Três modos: dentro do Apps Script (google.script.run); hospedada fora do Google (API do web app,
+// sem usar a conta Google de quem abre); ou prévia local com dados fictícios.
+const API_URL = 'https://script.google.com/macros/s/AKfycbwer3lCUJAFzThWjRQooowAVUpvJnSGdAiA8ic6BE_rQZosEPNwMrKHJQzEi3O5XpDvUA/exec';
+const NO_GOOGLE = !(window.google && google.script && google.script.run);
+const PREVIA = NO_GOOGLE && /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]api=1/.test(location.search);
+function api(fn, ...args) {
+  if (PREVIA) return new Promise((ok, erro) => setTimeout(() => { try { ok(DEMO[fn](...args)); } catch (e) { erro(e); } }, 150));
+  if (NO_GOOGLE) {
+    const corpo = fn === 'entrarVendedor' ? { portal: fn, nome: args[0], chave: args[1] } : { portal: fn };
+    // text/plain e sem cookies: o Google não tenta abrir com a conta do navegador
+    return fetch(API_URL, { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corpo) })
+      .then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.erro || 'Erro ao buscar os dados.'); return j.dados; });
+  }
+  return new Promise((ok, erro) => google.script.run.withSuccessHandler(ok).withFailureHandler(erro)[fn](...args));
+}
+// mantém o endereço do navegador em ?v=<vendedor>, para o vendedor salvar nos favoritos / página inicial
+function marcarUrl(v) {
+  if (NO_GOOGLE) {
+    const q = new URLSearchParams(location.search); if (v) q.set('v', v); else q.delete('v');
+    try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch (e) {}
+    return;
+  }
+  const p = { app: 'vendas' }; if (v) p.v = v;
+  try { google.script.history.push(null, p); } catch (e) {}
+}
+
+const S = { geral: null, eu: null, periodo: 'mes', desloc: 0 };
+const charts = {};
+function limparGraficos() { Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; }); }
+function grafico(id, labels, datasets, o = {}) {
+  const el = document.getElementById(id); if (!el) return;
+  const fmt = o.fmt || int;
+  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  Chart.defaults.color = cor('--muted');
+  const ds = datasets.map(d => d.type === 'line'
+    ? { borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0, borderColor: cor('--ink2'), backgroundColor: cor('--ink2'), yAxisID: d.yAxisID || 'y', ...d }
+    : { borderRadius: 4, borderSkipped: 'start', maxBarThickness: 34, borderWidth: 0, backgroundColor: cor('--s1'), ...d });
+  const eixo = (pos, f) => ({ position: pos, beginAtZero: true, grid: { color: pos === 'left' ? cor('--grid') : 'transparent' }, border: { display: false }, ticks: { color: cor('--muted'), callback: v => f(v), maxTicksLimit: 6 } });
+  const scales = { x: { grid: { display: false }, border: { color: cor('--axis') }, ticks: { color: cor('--muted'), maxRotation: 0, autoSkip: true } }, y: eixo('left', fmt) };
+  if (o.fmt2) scales.y2 = eixo('right', o.fmt2);
+  charts[id] = new Chart(el, {
+    type: 'bar', data: { labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8, color: cor('--ink2') } },
+        tooltip: { backgroundColor: cor('--card'), titleColor: cor('--ink'), bodyColor: cor('--ink2'), borderColor: cor('--border'), borderWidth: 1, padding: 10,
+          callbacks: { label: c => ` ${c.dataset.label}: ${(c.dataset.yAxisID === 'y2' ? o.fmt2 : fmt)(c.parsed.y)}` } } },
+      scales }
+  });
+}
+function card(id, titulo, sub, cls = '', h = 260) {
+  return `<div class="card ${cls}"><h3>${titulo}</h3><p class="sub">${sub}</p><div class="ch" style="height:${h}px"><canvas id="${id}" role="img" aria-label="${esc(titulo)}"></canvas></div></div>`;
+}
+function tile(label, valor, sub = '') { return `<div class="tile"><div class="t-l">${label}</div><div class="t-v">${valor}</div>${sub ? `<div class="t-s">${sub}</div>` : ''}</div>`; }
+// situação diante da meta: compara com o esperado até hoje quando o período ainda está correndo
+function situacao(real, meta, esperado) {
+  if (!meta) return { c: 'warn', t: 'Meta não definida' };
+  if (real >= meta) return { c: 'good', t: 'Meta batida' };
+  if (esperado == null) return { c: 'crit', t: 'Meta não batida' };
+  return real >= esperado * 0.9 ? { c: 'good', t: 'No ritmo' } : real >= esperado * 0.6 ? { c: 'warn', t: 'Abaixo do ritmo' } : { c: 'crit', t: 'Muito abaixo do ritmo' };
+}
+function tileMeta(label, real, meta, esperado, extra = '') {
+  const st = situacao(real, meta, esperado);
+  const ritmo = meta && esperado != null && real < meta ? `<i style="left:calc(${Math.min(100, esperado / meta * 100)}% - 1px)" title="Esperado até hoje"></i>` : '';
+  return `<div class="tile"><div class="t-l">${label}</div>
+    <div class="t-v">${int(real)} <span class="t-of">/ ${meta ? dec(meta) : '—'}</span></div>
+    <div class="bar"><span style="width:${meta ? Math.min(100, real / meta * 100) : 0}%"></span>${ritmo}</div>
+    <div class="t-s"><span class="st st-${st.c}">${st.t}</span>${meta ? `<span>${pct(real / meta)} da meta</span>` : ''}${extra}</div></div>`;
+}
+
+// ================= PÁGINA 1: escolha do nome (sem chave, sem números) =================
+function irGeral() {
+  limparGraficos(); S.eu = null; marcarUrl(); $('#chip').textContent = '';
+  if (S.nomes) return viewInicio();
+  $('#app').innerHTML = '<div class="carregando">Carregando…</div>';
+  api('portalGeral').then(g => { S.nomes = g.equipe; viewInicio(); }).catch(e => { $('#app').innerHTML = `<div class="vazio">${esc(e.message || e)}</div>`; });
+}
+function viewInicio() {
+  $('#app').innerHTML = `<div class="cab"><div><h1>Painel do vendedor</h1><div class="sub">Escolha o seu nome e entre com a sua chave para ver suas intermediações e metas</div></div></div>
+    <div class="equipe">${S.nomes.map(n => `<button class="pessoa" data-nome="${esc(n)}" onclick="abrirVendedor(this.dataset.nome)">
+        <span class="nm"><span class="pos">${esc(n.slice(0, 1))}</span>${esc(n)}</span>
+        <span class="ir">Entrar →</span></button>`).join('')}</div>`;
+}
+
+// ================= PÁGINA 2: chave do vendedor =================
+function abrirVendedor(nome) {
+  limparGraficos(); marcarUrl(nome);
+  const salva = lsGet('chave_' + nome);
+  if (salva) return entrar(nome, salva, true, true);
+  viewChave(nome);
+}
+function viewChave(nome, erro = '') {
+  $('#chip').textContent = '';
+  $('#app').innerHTML = `<form class="box" onsubmit="event.preventDefault(); entrar(${esc(JSON.stringify(nome))}, $('#kChave').value, $('#kLembrar').checked)">
+      <h2>${esc(nome)}</h2>
+      <p>Digite a sua chave de acesso para ver suas intermediações e metas.</p>
+      <label for="kChave">Chave</label>
+      <input id="kChave" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12" required>
+      <label class="lembrar"><input type="checkbox" id="kLembrar" checked> Lembrar neste aparelho</label>
+      <div class="erro" id="kErro">${esc(erro)}</div>
+      <div class="acoes"><button type="button" class="btn" onclick="irGeral()">Voltar</button><button class="btn pri" id="kBtn">Entrar</button></div>
+      <p style="margin:18px 0 0;font-size:12px;color:var(--muted)">Dica: salve esta página nos favoritos. Ela abre direto no seu painel.</p>
+    </form>`;
+  setTimeout(() => $('#kChave') && $('#kChave').focus(), 50);
+}
+function entrar(nome, chave, lembrar, automatico) {
+  const b = $('#kBtn'); if (b) b.disabled = true;
+  if (automatico) $('#app').innerHTML = '<div class="carregando">Abrindo seu painel…</div>';
+  api('entrarVendedor', nome, chave).then(eu => {
+    lsSet('chave_' + nome, lembrar ? chave : null);
+    S.eu = eu; S.periodo = lsGet('periodo') || 'mes'; S.desloc = 0;
+    viewVendedor();
+  }).catch(e => { if (automatico) lsSet('chave_' + nome, null); viewChave(nome, e.message || String(e)); });
+}
+function sair() { if (S.eu) lsSet('chave_' + S.eu.nome, null); irGeral(); }
+
+// ================= PÁGINA 3: painel individual (só quantidades) =================
+const PERIODOS = { dia: 'Diário', semana: 'Semanal', mes: 'Mensal', trimestre: 'Trimestral', semestre: 'Semestral', ano: 'Anual' };
+// intervalo do período escolhido, deslocado k períodos para trás (k <= 0)
+function intervalo(tipo, hoje, k) {
+  const d = D(hoje), y = d.getFullYear(), m = d.getMonth();
+  if (tipo === 'dia') { const s = addDias(hoje, k); return { ini: s, fim: s, rot: dataBR(s) }; }
+  if (tipo === 'semana') { const seg = addDias(hoje, -((d.getDay() + 6) % 7) + 7 * k); return { ini: seg, fim: addDias(seg, 6), rot: `${dataBR(seg).slice(0, 5)} a ${dataBR(addDias(seg, 6)).slice(0, 5)}` }; }
+  const n = { mes: 1, trimestre: 3, semestre: 6, ano: 12 }[tipo];
+  const base = tipo === 'ano' ? new Date(y + k, 0, 1, 12) : new Date(y, Math.floor(m / n) * n + n * k, 1, 12);
+  const ini = iso(base), fim = fimMes(base.getFullYear(), base.getMonth() + n - 1), by = base.getFullYear(), bm = base.getMonth();
+  const rot = tipo === 'mes' ? `${MESES[bm]}/${by}` : tipo === 'trimestre' ? `${bm / 3 + 1}º trimestre ${by}` : tipo === 'semestre' ? `${bm / 6 + 1}º semestre ${by}` : String(by);
+  return { ini, fim, rot };
+}
+// fatias do gráfico de evolução dentro do período
+function fatias(tipo, iv) {
+  const out = [];
+  if (tipo === 'dia') { for (let i = -13; i <= 0; i++) { const s = addDias(iv.ini, i); out.push({ ini: s, fim: s, rot: s.slice(8) + '/' + s.slice(5, 7) }); } return out; }
+  if (tipo === 'semana' || tipo === 'mes') { for (let s = iv.ini; s <= iv.fim; s = addDias(s, 1)) out.push({ ini: s, fim: s, rot: tipo === 'semana' ? ['dom','seg','ter','qua','qui','sex','sáb'][D(s).getDay()] + ' ' + s.slice(8) : s.slice(8) }); return out; }
+  if (tipo === 'trimestre') { let s = iv.ini; while (s <= iv.fim) { const dom = addDias(s, (7 - D(s).getDay()) % 7), f = dom < iv.fim ? dom : iv.fim; out.push({ ini: s, fim: f, rot: s.slice(8) + '/' + s.slice(5, 7) }); s = addDias(f, 1); } return out; }
+  let s = iv.ini; while (s <= iv.fim) { const d = D(s), f = fimMes(d.getFullYear(), d.getMonth()); out.push({ ini: s, fim: f, rot: MESES[d.getMonth()] }); s = addDias(f, 1); } return out;
+}
+function mudarPeriodo(p) { S.periodo = p; S.desloc = 0; lsSet('periodo', p); viewVendedor(); }
+function andar(n) { S.desloc = Math.min(0, S.desloc + n); viewVendedor(); }
+
+function viewVendedor() {
+  limparGraficos();
+  const eu = S.eu, hoje = eu.hoje, tipo = S.periodo, iv = intervalo(tipo, hoje, S.desloc);
+  $('#chip').textContent = eu.nome;
+  const doPer = (a, b) => eu.vendas.filter(v => v.data >= a && v.data <= b);
+  const vs = doPer(iv.ini, iv.fim).sort((a, b) => b.data.localeCompare(a.data));
+  const meta = metaIntervalo(eu.meta, iv.ini, iv.fim);
+  const correndo = iv.ini <= hoje && hoje <= iv.fim;
+  const esperado = correndo ? metaIntervalo(eu.meta, iv.ini, hoje) : null;
+  const ivAnt = intervalo(tipo, hoje, S.desloc - 1), nAnt = doPer(ivAnt.ini, ivAnt.fim).length;
+  // minhas metas mínimas da semana e do mês atuais
+  const sem = intervalo('semana', hoje, 0), mesI = intervalo('mes', hoje, 0);
+  const metaSem = metaIntervalo(eu.meta, sem.ini, sem.fim), feitasSem = doPer(sem.ini, sem.fim).length;
+  const feitasMes = doPer(mesI.ini, mesI.fim).length;
+  // comissão: só das vendas do próprio vendedor, com os valores e adicionais que o gestor definiu
+  const comMes = soma(doPer(mesI.ini, hoje), v => v.comissao), comPer = soma(vs, v => v.comissao);
+  // equipe no mês atual
+  const { minima, geral } = eu.metas;
+  const eqMes = eu.equipe.filter(d => d >= mesI.ini && d <= mesI.fim), uMes = diasUteis(mesI.ini, mesI.fim), passados = diasUteis(mesI.ini, hoje);
+  const restam = diasUteis(hoje, mesI.fim), faltaEq = Math.max(0, minima - eqMes.length);
+  const stEq = eqMes.length >= geral ? { c: 'good', t: 'Meta geral batida' } : eqMes.length >= minima ? { c: 'good', t: 'Mínima batida' } : situacao(eqMes.length, minima, minima * passados / uMes);
+  const fs = fatias(tipo, iv);
+  const hist = Array.from({ length: 6 }, (_, i) => intervalo(tipo, hoje, S.desloc - 5 + i));
+  const diasMes = []; for (let s = mesI.ini; s <= mesI.fim; s = addDias(s, 1)) diasMes.push(s);
+
+  $('#app').innerHTML = `<div class="cab"><div><h1>Olá, ${esc(eu.nome.split(' ')[0])}</h1>
+      <div class="sub">Suas intermediações e metas · atualizado em ${dataBR(hoje)} · ${esc(eu.fonteMeta)}</div></div>
+      <span class="esp"></span>
+      <button class="btn" onclick="sair()">Sair</button></div>
+    <div class="tiles">
+      <div class="tile"><div class="t-l">Intermediações da equipe em ${MESES[+hoje.slice(5, 7) - 1]}</div>
+        <div class="t-v">${int(eqMes.length)} <span class="t-of">/ mín. ${int(minima)} · meta ${int(geral)}</span></div>
+        <div class="bar"><span style="width:${geral ? Math.min(100, eqMes.length / geral * 100) : 0}%"></span>${geral ? `<i style="left:calc(${Math.min(100, minima / geral * 100)}% - 1px)" title="Meta mínima"></i>` : ''}</div>
+        <div class="t-s"><span class="st st-${stEq.c}">${stEq.t}</span>${faltaEq ? `<span>faltam ${int(faltaEq)} p/ mínima · ${int(restam)} dias úteis</span>` : ''}</div></div>
+      ${tileMeta('Minha meta mínima da semana', feitasSem, metaSem, metaIntervalo(eu.meta, sem.ini, hoje), `<span>${esc(sem.rot)}</span>`)}
+      ${tileMeta('Minha meta mínima do mês', feitasMes, eu.meta, metaIntervalo(eu.meta, mesI.ini, hoje), `<span>${esc(mesI.rot)}</span>`)}
+      ${tile(`Minha comissão em ${MESES[+hoje.slice(5, 7) - 1]} até agora`, brl(comMes), `${int(feitasMes)} intermediação(ões) · conforme lançado pelo gestor`)}
+    </div>
+    ${eu.semVendedor ? `<div class="dica">${int(eu.semVendedor)} intermediação(ões) do mês ainda sem vendedor atribuído pelo gestor: contam para a equipe, mas ainda não aparecem no nome de ninguém.</div>` : ''}
+    <div class="cab" style="margin-bottom:16px">
+      <div class="periodos" role="group" aria-label="Período">${Object.entries(PERIODOS).map(([k, t]) => `<button aria-pressed="${k === tipo}" onclick="mudarPeriodo('${k}')">${t}</button>`).join('')}</div>
+      <span class="esp"></span>
+      <div class="nav"><button class="btn" onclick="andar(-1)" aria-label="Período anterior">‹</button><b>${esc(iv.rot)}</b><button class="btn" onclick="andar(1)" aria-label="Próximo período" ${S.desloc >= 0 ? 'disabled' : ''}>›</button></div>
+    </div>
+    <div class="tiles">
+      ${tileMeta('Minhas intermediações no período', vs.length, meta, esperado)}
+      ${tile('Período anterior', int(nAnt), `${esc(ivAnt.rot)} · ${vs.length > nAnt ? `<span class="st st-good">+${int(vs.length - nAnt)} agora</span>` : vs.length < nAnt ? `<span class="st st-crit">−${int(nAnt - vs.length)} agora</span>` : 'igual'}`)}
+      ${tile('Minha comissão no período', brl(comPer), vs.length ? `média de ${brl(comPer / vs.length)} por intermediação` : '')}
+      ${tile('Adicionais vendidos', int(soma(vs, v => v.adicionais.length)), 'Despachante, seguros, troca, financiamento')}
+    </div>
+    <div class="grid">
+      ${card('gEvo', 'Minha evolução', tipo === 'dia' ? 'Últimos 14 dias · intermediações por dia x meta mínima diária' : `${esc(iv.rot)} · por ${tipo === 'trimestre' ? 'semana' : tipo === 'semestre' || tipo === 'ano' ? 'mês' : 'dia'}, acumulado x meta mínima acumulada`)}
+      ${card('gHist', `Meus últimos 6 períodos (${PERIODOS[tipo].toLowerCase()})`, 'Intermediações x meta mínima de cada período')}
+    </div>
+    <div class="grid">${card('gEq', 'Equipe no mês', 'Intermediações acumuladas da equipe x ritmo para a mínima e para a meta geral', 'full')}</div>
+    <div class="card full"><h3>Minhas intermediações no período</h3><p class="sub">Vendas atribuídas a você pelo gestor · comissão = valor fixo por venda + adicionais marcados</p>
+      ${vs.length ? `<div class="tab"><table><thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th>Adicionais</th><th class="n">Comissão</th></tr></thead><tbody>
+        ${vs.map(v => `<tr><td>${dataBR(v.data)}</td><td>${esc(v.veiculo)} <span style="color:var(--muted)">${esc(v.placa)}</span></td><td>${esc(v.tipo)}</td><td>${esc(v.adicionais.join(', ') || '—')}</td><td class="n">${brl(v.comissao)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="vazio">Nenhuma intermediação neste período.</div>'}</div>`;
+
+  const cont = f => doPer(f.ini, f.fim).length;
+  if (tipo === 'dia') {
+    grafico('gEvo', fs.map(f => f.rot), [{ label: 'Intermediações', data: fs.map(cont) },
+      { type: 'line', label: 'Meta mínima do dia', data: fs.map(f => metaIntervalo(eu.meta, f.ini, f.fim)), borderDash: [5, 4] }], { fmt: dec });
+  } else {
+    let a = 0;
+    grafico('gEvo', fs.map(f => f.rot), [{ label: 'Intermediações', data: fs.map(cont) },
+      { type: 'line', label: 'Acumulado', data: fs.map(f => f.ini > hoje ? null : (a += cont(f))), borderColor: cor('--s1'), backgroundColor: cor('--s1') },
+      { type: 'line', label: 'Meta mínima acumulada', data: fs.map(f => metaIntervalo(eu.meta, iv.ini, f.fim)), borderDash: [5, 4] }], { fmt: dec });
+  }
+  grafico('gHist', hist.map(h => h.rot), [{ label: 'Intermediações', data: hist.map(cont) },
+    { type: 'line', label: 'Meta mínima', data: hist.map(h => metaIntervalo(eu.meta, h.ini, h.fim)), borderDash: [5, 4], pointRadius: 3 }], { fmt: dec });
+  let ac = 0;
+  grafico('gEq', diasMes.map(s => s.slice(8)), [
+    { label: 'No dia', data: diasMes.map(s => eqMes.filter(d => d === s).length) },
+    { type: 'line', label: 'Acumulado', data: diasMes.map(s => s <= hoje ? (ac += eqMes.filter(d => d === s).length) : null), borderColor: cor('--s1'), backgroundColor: cor('--s1') },
+    { type: 'line', label: 'Ritmo mínima', data: diasMes.map(s => minima * diasUteis(mesI.ini, s) / uMes), borderDash: [5, 4] },
+    { type: 'line', label: 'Ritmo meta geral', data: diasMes.map(s => geral * diasUteis(mesI.ini, s) / uMes), borderDash: [2, 3], borderColor: cor('--muted'), backgroundColor: cor('--muted') }], { fmt: dec });
+}
+
+// ================= prévia (fora do Google) =================
+const DEMO = (() => {
+  let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647, ri = (a, b) => a + Math.floor(r() * (b - a + 1)), pick = a => a[ri(0, a.length - 1)];
+  const hoje = iso(new Date()), equipe = ['Elivelton', 'João Vitor', 'Karol', 'Lucas Couto'];
+  const carros = ['VOLKSWAGEN CROSS UP', 'JEEP RENEGADE', 'NISSAN FRONTIER', 'HONDA CITY', 'FIAT ARGO', 'BMW X6'];
+  const vendas = {};
+  equipe.forEach(n => { vendas[n] = []; for (let k = 0; k < ri(30, 60); k++) vendas[n].push({ data: addDias(hoje, -ri(0, 400)), veiculo: pick(carros), placa: 'ABC-' + ri(1000, 9999),
+    tipo: pick(['C2C', 'Turbo', 'Trade-in']), adicionais: ['Despachante', 'Seguro Gestauto', 'Financiamento'].filter(() => r() < 0.3) }); });
+  Object.values(vendas).flat().forEach(v => { v.comissao = 300 + v.adicionais.length * 80; });
+  return {
+    portalGeral: () => ({ equipe }),
+    entrarVendedor: (nome, chave) => { if (String(chave) !== '1234') throw new Error('Chave incorreta. (Na prévia, use 1234.)');
+      return { nome, hoje, meta: 25 / 4, fonteMeta: 'Meta mínima da equipe dividida por 4', metas: { minima: 25, geral: 30 }, semVendedor: 2,
+        equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome] }; }
+  };
+})();
+
+// ================= início: ?v=<vendedor> abre direto a chave (ou o painel, se lembrado) daquele vendedor =================
+function iniciar(v) { if (v) abrirVendedor(v); else irGeral(); }
+if (NO_GOOGLE) iniciar(new URLSearchParams(location.search).get('v'));
+else google.script.url.getLocation(loc => iniciar(loc.parameter && loc.parameter.v));
+</script>
+</body>
+</html>
