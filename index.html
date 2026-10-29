@@ -182,6 +182,7 @@ function api(fn, ...args) {
 function marcarUrl(v) {
   if (NO_GOOGLE) {
     const q = new URLSearchParams(location.search); if (v) q.set('v', v); else q.delete('v');
+    if (S.pagina === 'desempenho') q.set('p', 'desempenho'); else q.delete('p');
     try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch (e) {}
     return;
   }
@@ -189,7 +190,16 @@ function marcarUrl(v) {
   try { google.script.history.push(null, p); } catch (e) {}
 }
 
-const S = { geral: null, eu: null, periodo: 'mes', desloc: 0 };
+// duas páginas com a mesma chave: Vendas (padrão) e Desempenho individual (?p=desempenho)
+const S = { geral: null, eu: null, periodo: 'mes', desloc: 0,
+            pagina: new URLSearchParams(location.search).get('p') === 'desempenho' ? 'desempenho' : 'vendas' };
+function mostrar() { S.pagina === 'desempenho' ? viewDesempenho() : viewVendedor(); }
+function irPagina(p) { S.pagina = p; marcarUrl(S.eu ? S.eu.nome : ''); window.scrollTo(0, 0); mostrar(); }
+function abas() {
+  return `<div class="periodos" role="tablist" aria-label="Página" style="margin-bottom:16px">
+    <button role="tab" aria-pressed="${S.pagina === 'vendas'}" onclick="irPagina('vendas')">Vendas</button>
+    <button role="tab" aria-pressed="${S.pagina === 'desempenho'}" onclick="irPagina('desempenho')">Desempenho individual</button></div>`;
+}
 const charts = {};
 function limparGraficos() { Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; }); }
 function grafico(id, labels, datasets, o = {}) {
@@ -241,7 +251,7 @@ function irGeral() {
   api('portalGeral').then(g => { S.nomes = g.equipe; viewInicio(); }).catch(e => { $('#app').innerHTML = `<div class="vazio">${esc(e.message || e)}</div>`; });
 }
 function viewInicio() {
-  $('#app').innerHTML = `<div class="cab"><div><h1>Painel do vendedor</h1><div class="sub">Escolha o seu nome e entre com a sua chave para ver suas intermediações e metas</div></div></div>
+  $('#app').innerHTML = `<div class="cab"><div><h1>${S.pagina === 'desempenho' ? 'Desempenho individual' : 'Painel do vendedor'}</h1><div class="sub">Escolha o seu nome e entre com a sua chave para ver suas ${S.pagina === 'desempenho' ? 'vendas, leads e atendimentos' : 'intermediações e metas'}</div></div></div>
     <div class="equipe">${S.nomes.map(n => `<button class="pessoa" data-nome="${esc(n)}" onclick="abrirVendedor(this.dataset.nome)">
         <span class="nm"><span class="pos">${esc(n.slice(0, 1))}</span>${esc(n)}</span>
         <span class="ir">Entrar →</span></button>`).join('')}</div>`;
@@ -273,8 +283,8 @@ function entrar(nome, chave, lembrar, automatico) {
   if (automatico) $('#app').innerHTML = '<div class="carregando">Abrindo seu painel…</div>';
   api('entrarVendedor', nome, chave).then(eu => {
     lsSet('chave_' + nome, lembrar ? chave : null);
-    S.eu = eu; S.periodo = lsGet('periodo') || 'mes'; S.desloc = 0;
-    viewVendedor();
+    S.eu = eu; S.periodo = lsGet('periodo') || 'mes'; S.desloc = 0; S.mesRef = eu.hoje.slice(0, 7);
+    mostrar();
   }).catch(e => { if (automatico) lsSet('chave_' + nome, null); viewChave(nome, e.message || String(e)); });
 }
 function sair() { if (S.eu) lsSet('chave_' + S.eu.nome, null); irGeral(); }
@@ -335,6 +345,7 @@ function viewVendedor() {
       <div class="sub">Suas vendas e metas · atualizado em ${dataBR(hoje)} · ${eu.meta ? `sua meta: ${dec(eu.meta)} vendas por mês` : esc(eu.fonteMeta)}</div></div>
       <span class="esp"></span>
       <button class="btn" onclick="sair()">Sair</button></div>
+    ${abas()}
     <div class="tiles">
       <div class="tile"><div class="t-l">Intermediações da equipe em ${MESES[+hoje.slice(5, 7) - 1]}</div>
         <div class="t-v">${int(eqMes.length)} <span class="t-of">/ mín. ${int(minima)} · meta ${int(geral)}</span></div>
@@ -401,6 +412,70 @@ function tabelaComissao(vs, regras) {
     <tbody>${linhas}${total}</tbody></table></div>`;
 }
 
+// ================= DESEMPENHO INDIVIDUAL (mesmo conteúdo do painel original do vendedor) =================
+const ETAPAS = ['Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado'];
+const aberto = l => l.etapa === 'Em atendimento' || l.etapa === 'Agendado';
+const diasEntre = (a, b) => Math.round((D(b) - D(a)) / 864e5);
+function mediana(a) { const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); if (!s.length) return NaN; const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+const media = (a, f) => a.length ? soma(a, f) / a.length : NaN;
+const tempo = v => !isFinite(v) ? '—' : v < 60 ? Math.round(v) + ' min' : v < 1440 ? dec(v / 60) + ' h' : dec(v / 1440) + ' dias';
+function mudarMesRef(n) { const [y, m] = S.mesRef.split('-').map(Number), x = new Date(y, m - 1 + n, 1, 12); const k = iso(x).slice(0, 7); if (k <= S.eu.hoje.slice(0, 7)) { S.mesRef = k; viewDesempenho(); } }
+function viewDesempenho() {
+  limparGraficos();
+  const eu = S.eu, hoje = eu.hoje, ref = S.mesRef || hoje.slice(0, 7), [y, m] = ref.split('-').map(Number);
+  const ini = ref + '-01', fim = fimMes(y, m - 1), atual = ref === hoje.slice(0, 7);
+  $('#chip').textContent = eu.nome;
+  const vMes = eu.vendas.filter(v => v.data >= ini && v.data <= fim).sort((a, b) => b.data.localeCompare(a.data));
+  const leads = eu.leads || [], conversas = eu.conversas || [];
+  const leadsMes = leads.filter(l => l.data >= ini && l.data <= fim);
+  const abertos = leads.filter(aberto).map(l => ({ ...l, dias: l.ultima ? diasEntre(l.ultima, hoje) : 0 })).sort((a, b) => b.dias - a.dias);
+  const parados = abertos.filter(l => l.dias >= 3).length;
+  const cMes = conversas.filter(c => String(c.data).slice(0, 7) === ref);
+  const ultimas = [...conversas].sort((a, b) => String(b.data).localeCompare(String(a.data))).slice(0, 6);
+  const comissao = soma(vMes, v => v.comissao), aReceber = soma(vMes.filter(v => v.pagamento === 'Pendente'), v => v.comissao);
+  const meses = Array.from({ length: 12 }, (_, i) => iso(new Date(y, m - 12 + i, 1, 12)).slice(0, 7));
+  const funil = ETAPAS.map(e => [e, leadsMes.filter(l => l.etapa === e).length]), maxF = Math.max(1, ...funil.map(f => f[1]));
+
+  $('#app').innerHTML = `<div class="cab"><div><h1>Olá, ${esc(eu.nome.split(' ')[0])}</h1>
+      <div class="sub">Seu desempenho individual · atualizado em ${dataBR(hoje)}</div></div>
+      <span class="esp"></span>
+      <div class="nav"><button class="btn" onclick="mudarMesRef(-1)" aria-label="Mês anterior">‹</button><b>${MESES[m - 1]}/${y}</b><button class="btn" onclick="mudarMesRef(1)" aria-label="Próximo mês" ${atual ? 'disabled' : ''}>›</button></div>
+      <button class="btn" onclick="sair()">Sair</button></div>
+    ${abas()}
+    <div class="tiles">
+      ${tileMeta('Minhas vendas no mês', vMes.length, eu.meta, atual ? metaIntervalo(eu.meta, ini, hoje) : null)}
+      ${tile('Minha comissão no mês', brl(comissao), aReceber ? `${brl(aReceber)} a receber` : 'conforme lançado pelo gestor')}
+      ${tile('Leads em aberto', int(abertos.length), parados ? `<span class="st st-crit">${int(parados)} sem contato há 3+ dias</span>` : '<span class="st st-good">Todos em dia</span>')}
+      ${tile('Nota do atendimento', cMes.length ? dec(media(cMes, c => c.nota)) : '—', `1ª resposta aos leads (mediana): ${tempo(mediana(leadsMes.map(l => l.tempoResp)))}`)}
+    </div>
+    <div class="grid">
+      ${card('dHist', 'Minhas vendas x meta', 'Últimos 12 meses')}
+      <div class="card"><h3>Meu funil de leads</h3><p class="sub">Leads que entraram em ${MESES[m - 1]}/${y} · ${int(leadsMes.length)} no total</p>
+        ${funil.map(([e, n]) => `<div style="display:grid;grid-template-columns:120px 1fr 40px;gap:8px;align-items:center;margin:8px 0;font-size:13px">
+          <span style="color:var(--ink2)">${e}</span><span class="bar" style="margin:0"><span style="width:${n / maxF * 100}%"></span></span><b style="text-align:right">${int(n)}</b></div>`).join('')}
+      </div>
+    </div>
+    <div class="card full" style="margin-bottom:16px"><h3>Leads para atender</h3><p class="sub">Em aberto, os mais parados primeiro</p>
+      ${abertos.length ? `<div class="tab"><table><thead><tr><th>Lead</th><th>Telefone</th><th>Veículo</th><th>Etapa</th><th class="n">Sem contato</th><th>Próximo passo</th></tr></thead><tbody>
+        ${abertos.slice(0, 15).map(l => `<tr><td>${esc(l.nome)}<div style="color:var(--muted);font-size:12px">${esc(l.origem || '')}</div></td><td>${esc(l.telefone)}</td><td>${esc(l.veiculo)}</td><td>${esc(l.etapa)}</td>
+          <td class="n">${l.dias >= 3 ? `<span class="st st-crit">${int(l.dias)} dias</span>` : int(l.dias) + ' dias'}</td><td>${esc(l.proximo || '—')}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="vazio">Nenhum lead em aberto.</div>'}</div>
+    <div class="card full" style="margin-bottom:16px"><h3>Feedback dos atendimentos no WhatsApp</h3><p class="sub">Últimas conversas analisadas</p>
+      ${ultimas.length ? `<div class="equipe">${ultimas.map(c => `<div class="tile" style="box-shadow:none"><div class="t-l" style="display:flex;justify-content:space-between"><b style="color:var(--ink)">${esc(c.lead)}</b><b>${esc(c.nota)}/10</b></div>
+        <div class="t-s">${dataBR(String(c.data).slice(0, 10))} · interesse ${esc(String(c.interesse || '').toLowerCase())} · ${esc(c.sentimento || '')}</div>
+        <div class="t-s"><span class="st st-good">Bom</span> ${esc(c.fortes || '')}</div>
+        <div class="t-s"><span class="st st-warn">Melhorar</span> ${esc(c.melhorar || '')}</div>
+        <div class="t-s"><b>Próximo passo:</b> ${esc(c.proximo || '')}</div></div>`).join('')}</div>` : '<div class="vazio">Nenhuma conversa analisada ainda.</div>'}</div>
+    <div class="card full"><h3>Minhas vendas no mês</h3><p class="sub">Vendas atribuídas a você pelo gestor</p>
+      ${vMes.length ? `<div class="tab"><table><thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th class="n">Comissão</th><th>Pagamento</th></tr></thead><tbody>
+        ${vMes.map(v => `<tr><td>${dataBR(v.data)}</td><td>${esc(v.veiculo)} <span style="color:var(--muted)">${esc(v.placa)}</span></td><td>${esc(v.tipo)}</td><td class="n">${brl(v.comissao)}</td><td>${esc(v.pagamento || '—')}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="vazio">Nenhuma venda neste mês.</div>'}</div>`;
+
+  grafico('dHist', meses.map(k => MESES[+k.slice(5) - 1] + '/' + k.slice(2, 4)), [
+    { label: 'Vendas', data: meses.map(k => eu.vendas.filter(v => v.data.slice(0, 7) === k).length) },
+    { type: 'line', label: 'Meta', data: meses.map(() => eu.meta), borderDash: [5, 4] }], { fmt: dec });
+}
+
 // ================= prévia (fora do Google) =================
 const DEMO = (() => {
   let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647, ri = (a, b) => a + Math.floor(r() * (b - a + 1)), pick = a => a[ri(0, a.length - 1)];
@@ -415,7 +490,10 @@ const DEMO = (() => {
     entrarVendedor: (nome, chave) => { if (String(chave) !== '1234') throw new Error('Chave incorreta. (Na prévia, use 1234.)');
       return { nome, hoje, meta: 15, fonteMeta: 'Meta individual', metas: { minima: 25, geral: 30 }, semVendedor: 2,
         regras: { fixo: 300 }, bonus: [{ vendas: 10, valor: 300 }, { vendas: 15, valor: 800 }, { vendas: 20, valor: 1200 }],
-        equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome] }; }
+        equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome].map(v => ({ ...v, pagamento: pick(['Pendente', 'Pago']) })),
+        leads: Array.from({ length: 40 }, (_, k) => ({ data: addDias(hoje, -ri(0, 60)), nome: 'Cliente ' + (k + 1), telefone: '(11) 9' + ri(1000, 9999) + '-' + ri(1000, 9999), veiculo: pick(carros), origem: pick(['WebMotors', 'MercadoLivre', 'Whatsapp']),
+          etapa: pick(['Em atendimento', 'Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado']), ultima: addDias(hoje, -ri(0, 8)), proximo: pick(['Enviar fotos', 'Confirmar visita', '']), tempoResp: pick([3, 12, 45, 240, null]) })),
+        conversas: [{ data: hoje, lead: 'Cliente 3', nota: 8, interesse: 'Alto', sentimento: 'Positivo', fortes: 'Respondeu rápido', melhorar: 'Propor visita', proximo: 'Ligar amanhã' }] }; }
   };
 })();
 
