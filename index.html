@@ -417,7 +417,6 @@ const ETAPAS = ['Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado'
 const aberto = l => l.etapa === 'Em atendimento' || l.etapa === 'Agendado';
 const diasEntre = (a, b) => Math.round((D(b) - D(a)) / 864e5);
 function mediana(a) { const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); if (!s.length) return NaN; const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
-const media = (a, f) => a.length ? soma(a, f) / a.length : NaN;
 const tempo = v => !isFinite(v) ? '—' : v < 60 ? Math.round(v) + ' min' : v < 1440 ? dec(v / 60) + ' h' : dec(v / 1440) + ' dias';
 function mudarMesRef(n) { const [y, m] = S.mesRef.split('-').map(Number), x = new Date(y, m - 1 + n, 1, 12); const k = iso(x).slice(0, 7); if (k <= S.eu.hoje.slice(0, 7)) { S.mesRef = k; viewDesempenho(); } }
 function viewDesempenho() {
@@ -426,12 +425,17 @@ function viewDesempenho() {
   const ini = ref + '-01', fim = fimMes(y, m - 1), atual = ref === hoje.slice(0, 7);
   $('#chip').textContent = eu.nome;
   const vMes = eu.vendas.filter(v => v.data >= ini && v.data <= fim).sort((a, b) => b.data.localeCompare(a.data));
-  const leads = eu.leads || [], conversas = eu.conversas || [];
+  const leads = eu.leads || [];
   const leadsMes = leads.filter(l => l.data >= ini && l.data <= fim);
   const abertos = leads.filter(aberto).map(l => ({ ...l, dias: l.ultima ? diasEntre(l.ultima, hoje) : 0 })).sort((a, b) => b.dias - a.dias);
   const parados = abertos.filter(l => l.dias >= 3).length;
-  const cMes = conversas.filter(c => String(c.data).slice(0, 7) === ref);
-  const ultimas = [...conversas].sort((a, b) => String(b.data).localeCompare(String(a.data))).slice(0, 6);
+  const sitTag = l => l.sit ? `<span class="st st-${l.sit.nivel}">${esc(l.sit.t)}</span>` : '—';
+  const ultMsg = l => l.sit && l.sit.ultMsg ? `${dataBR(l.sit.ultMsg)} · ${esc(l.sit.quem)}` : '—';
+  // etapa do Autocerto x conversa no WhatsApp: o que precisa de ação aparece primeiro
+  const pesoSit = { crit: 0, warn: 1, neutro: 2, good: 3 };
+  const contaSit = {}; leadsMes.forEach(l => { if (l.sit) (contaSit[l.sit.t] = contaSit[l.sit.t] || { ...l.sit, n: 0 }).n++; });
+  const statusReal = Object.values(contaSit).sort((a, b) => pesoSit[a.nivel] - pesoSit[b.nivel] || b.n - a.n);
+  const encerrados = leadsMes.filter(l => !aberto(l) && l.sit && (l.sit.nivel === 'crit' || l.sit.nivel === 'warn')).sort((a, b) => pesoSit[a.sit.nivel] - pesoSit[b.sit.nivel]);
   const comissao = soma(vMes, v => v.comissao), aReceber = soma(vMes.filter(v => v.pagamento === 'Pendente'), v => v.comissao);
   const meses = Array.from({ length: 12 }, (_, i) => iso(new Date(y, m - 12 + i, 1, 12)).slice(0, 7));
   const funil = ETAPAS.map(e => [e, leadsMes.filter(l => l.etapa === e).length]), maxF = Math.max(1, ...funil.map(f => f[1]));
@@ -446,26 +450,26 @@ function viewDesempenho() {
       ${tileMeta('Minhas vendas no mês', vMes.length, eu.meta, atual ? metaIntervalo(eu.meta, ini, hoje) : null)}
       ${tile('Minha comissão no mês', brl(comissao), aReceber ? `${brl(aReceber)} a receber` : 'conforme lançado pelo gestor')}
       ${tile('Leads em aberto', int(abertos.length), parados ? `<span class="st st-crit">${int(parados)} sem contato há 3+ dias</span>` : '<span class="st st-good">Todos em dia</span>')}
-      ${tile('Nota do atendimento', cMes.length ? dec(media(cMes, c => c.nota)) : '—', `1ª resposta aos leads (mediana): ${tempo(mediana(leadsMes.map(l => l.tempoResp)))}`)}
+      ${tile('1ª resposta aos leads', tempo(mediana(leadsMes.map(l => l.tempoResp))), 'Mediana do mês')}
     </div>
     <div class="grid">
       ${card('dHist', 'Minhas vendas x meta', 'Últimos 12 meses')}
       <div class="card"><h3>Meu funil de leads</h3><p class="sub">Leads que entraram em ${MESES[m - 1]}/${y} · ${int(leadsMes.length)} no total</p>
         ${funil.map(([e, n]) => `<div style="display:grid;grid-template-columns:120px 1fr 40px;gap:8px;align-items:center;margin:8px 0;font-size:13px">
           <span style="color:var(--ink2)">${e}</span><span class="bar" style="margin:0"><span style="width:${n / maxF * 100}%"></span></span><b style="text-align:right">${int(n)}</b></div>`).join('')}
+        ${statusReal.length ? `<h3 style="margin-top:16px">Como está de verdade</h3><p class="sub">Etapa do Autocerto cruzada com o WhatsApp pelo telefone</p>
+          ${statusReal.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;margin:6px 0;font-size:13px"><span class="st st-${x.nivel}">${esc(x.t)}</span><b>${int(x.n)}</b></div>`).join('')}` : ''}
       </div>
     </div>
     <div class="card full" style="margin-bottom:16px"><h3>Leads para atender</h3><p class="sub">Em aberto, os mais parados primeiro</p>
-      ${abertos.length ? `<div class="tab"><table><thead><tr><th>Lead</th><th>Telefone</th><th>Veículo</th><th>Etapa</th><th class="n">Sem contato</th><th>Próximo passo</th></tr></thead><tbody>
+      ${abertos.length ? `<div class="tab"><table><thead><tr><th>Lead</th><th>Telefone</th><th>Veículo</th><th>Etapa</th><th>Status real</th><th>Última msg</th><th>Próximo passo</th></tr></thead><tbody>
         ${abertos.slice(0, 15).map(l => `<tr><td>${esc(l.nome)}<div style="color:var(--muted);font-size:12px">${esc(l.origem || '')}</div></td><td>${esc(l.telefone)}</td><td>${esc(l.veiculo)}</td><td>${esc(l.etapa)}</td>
-          <td class="n">${l.dias >= 3 ? `<span class="st st-crit">${int(l.dias)} dias</span>` : int(l.dias) + ' dias'}</td><td>${esc(l.proximo || '—')}</td></tr>`).join('')}
+          <td>${sitTag(l)}</td><td>${ultMsg(l)}</td><td>${esc(l.proximo || '—')}</td></tr>`).join('')}
       </tbody></table></div>` : '<div class="vazio">Nenhum lead em aberto.</div>'}</div>
-    <div class="card full" style="margin-bottom:16px"><h3>Feedback dos atendimentos no WhatsApp</h3><p class="sub">Últimas conversas analisadas</p>
-      ${ultimas.length ? `<div class="equipe">${ultimas.map(c => `<div class="tile" style="box-shadow:none"><div class="t-l" style="display:flex;justify-content:space-between"><b style="color:var(--ink)">${esc(c.lead)}</b><b>${esc(c.nota)}/10</b></div>
-        <div class="t-s">${dataBR(String(c.data).slice(0, 10))} · interesse ${esc(String(c.interesse || '').toLowerCase())} · ${esc(c.sentimento || '')}</div>
-        <div class="t-s"><span class="st st-good">Bom</span> ${esc(c.fortes || '')}</div>
-        <div class="t-s"><span class="st st-warn">Melhorar</span> ${esc(c.melhorar || '')}</div>
-        <div class="t-s"><b>Próximo passo:</b> ${esc(c.proximo || '')}</div></div>`).join('')}</div>` : '<div class="vazio">Nenhuma conversa analisada ainda.</div>'}</div>
+    <div class="card full" style="margin-bottom:16px"><h3>Encerrados para revisar</h3><p class="sub">Leads de ${MESES[m - 1]}/${y} encerrados no Autocerto, mas que o WhatsApp não confirma</p>
+      ${encerrados.length ? `<div class="tab"><table><thead><tr><th>Lead</th><th>Telefone</th><th>Veículo</th><th>Etapa</th><th>Encerrado em</th><th>Status real</th><th>Última msg</th></tr></thead><tbody>
+        ${encerrados.slice(0, 30).map(l => `<tr><td>${esc(l.nome)}</td><td>${esc(l.telefone)}</td><td>${esc(l.veiculo)}</td><td>${esc(l.etapa)}</td><td>${dataBR(l.ultima)}</td><td>${sitTag(l)}</td><td>${ultMsg(l)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="vazio">Nenhum encerramento para revisar neste mês.</div>'}</div>
     <div class="card full"><h3>Minhas vendas no mês</h3><p class="sub">Vendas atribuídas a você pelo gestor</p>
       ${vMes.length ? `<div class="tab"><table><thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th class="n">Comissão</th><th>Pagamento</th></tr></thead><tbody>
         ${vMes.map(v => `<tr><td>${dataBR(v.data)}</td><td>${esc(v.veiculo)} <span style="color:var(--muted)">${esc(v.placa)}</span></td><td>${esc(v.tipo)}</td><td class="n">${brl(v.comissao)}</td><td>${esc(v.pagamento || '—')}</td></tr>`).join('')}
@@ -492,8 +496,10 @@ const DEMO = (() => {
         regras: { fixo: 300 }, bonus: [{ vendas: 10, valor: 300 }, { vendas: 15, valor: 800 }, { vendas: 20, valor: 1200 }],
         equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome].map(v => ({ ...v, pagamento: pick(['Pendente', 'Pago']) })),
         leads: Array.from({ length: 40 }, (_, k) => ({ data: addDias(hoje, -ri(0, 60)), nome: 'Cliente ' + (k + 1), telefone: '(11) 9' + ri(1000, 9999) + '-' + ri(1000, 9999), veiculo: pick(carros), origem: pick(['WebMotors', 'MercadoLivre', 'Whatsapp']),
-          etapa: pick(['Em atendimento', 'Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado']), ultima: addDias(hoje, -ri(0, 8)), proximo: pick(['Enviar fotos', 'Confirmar visita', '']), tempoResp: pick([3, 12, 45, 240, null]) })),
-        conversas: [{ data: hoje, lead: 'Cliente 3', nota: 8, interesse: 'Alto', sentimento: 'Positivo', fortes: 'Respondeu rápido', melhorar: 'Propor visita', proximo: 'Ligar amanhã' }] }; }
+          etapa: pick(['Em atendimento', 'Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado']), ultima: addDias(hoje, -ri(0, 8)), proximo: pick(['Enviar fotos', 'Confirmar visita', '']), tempoResp: pick([3, 12, 45, 240, null]) })).map(l => ({ ...l,
+          sit: { ...(aberto(l) ? pick([{ t: 'Cliente esperando resposta', nivel: 'crit' }, { t: 'Aguardando o cliente', nivel: 'good' }, { t: 'Sem nenhum contato', nivel: 'crit' }])
+            : l.etapa === 'Vendido' ? { t: 'Vendido', nivel: 'good' } : pick([{ t: 'Encerrado de verdade', nivel: 'good' }, { t: 'Reabrir: cliente escreveu depois de encerrar', nivel: 'crit' }, { t: 'Encerrado sem responder o cliente', nivel: 'warn' }])),
+            ultMsg: addDias(hoje, -ri(0, 8)), quem: pick(['Cliente', 'Loja']) } })) }; }
   };
 })();
 
