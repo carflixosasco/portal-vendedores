@@ -552,7 +552,7 @@ function viewOperacional() {
       <button class="btn" onclick="sair()">Sair</button></div>
     ${abas()}
     <div class="card full"><h3>Leads por veículo em estoque · Webmotors e Mercado Livre</h3>
-      <p class="sub">${lw.length ? `<b>Webmotors (pago por lead, prioridade): ${int(soma(lw, x => x.n))} leads</b> · Mercado Livre (plano fixo): ${int(soma(lw, x => x.ml))} leads · desde ${dataBR(op.inicio)} · ${lw.length} veículos ainda em estoque · cruzamento pela placa · ordenado pelos leads da Webmotors · em vermelho: mais de ${LIMITE_LEADS_WM} leads da Webmotors` : 'Sem dados de estoque ainda.'}</p>
+      <p class="sub">${lw.length ? `<b>Webmotors (pago por lead, prioridade): ${int(soma(lw, x => x.n))} leads</b> · Mercado Livre (plano fixo): ${int(soma(lw, x => x.ml))} leads · desde ${dataBR(op.inicio)} · ${lw.length} veículos ainda em estoque · cruzamento pela placa · ordenado pelos leads da Webmotors · em vermelho: mais de ${LIMITE_LEADS_WM} leads da Webmotors<br><b style="color:var(--s1)">● nome em azul: anunciado na Webmotors agora</b> (${int(lw.filter(x => x.wm).length)} carros)` : 'Sem dados de estoque ainda.'}</p>
       ${lw.length ? `<div class="ch" style="height:${Math.max(180, lw.length * 34 + 60)}px"><canvas id="gLeadsWm" role="img" aria-label="Leads da Webmotors e do Mercado Livre por veículo em estoque"></canvas></div>` : ''}
       ${semLead ? `<div class="t-s" style="margin-top:8px"><span class="st st-warn">${int(semLead)} veículo(s) publicado(s) na Webmotors ainda sem lead</span></div>` : ''}
     </div>`;
@@ -566,11 +566,11 @@ function viewOperacional() {
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8, color: cor('--ink2') } },
         tooltip: { backgroundColor: cor('--card'), titleColor: cor('--ink'), bodyColor: cor('--ink2'), footerColor: cor('--ink2'), borderColor: cor('--border'), borderWidth: 1, padding: 10,
-          callbacks: { footer: items => `Total: ${int(lw[items[0].dataIndex].n + lw[items[0].dataIndex].ml)} leads` } } },
+          callbacks: { footer: items => { const x = lw[items[0].dataIndex]; return `Total: ${int(x.n + x.ml)} leads · ${x.wm ? 'anunciado na Webmotors agora' : 'não está anunciado na Webmotors'}`; } } } },
       scales: { x: { beginAtZero: true, grid: { color: cor('--grid') }, border: { display: false }, ticks: { color: cor('--muted'), precision: 0 } },
-        // no celular o rótulo vai em duas linhas (carro / placa) para não cortar
-        y: { grid: { display: false }, border: { color: cor('--axis') }, ticks: { color: cor('--muted'), autoSkip: false,
-          callback: (v, i) => { const r = lw[i].rot; if (innerWidth >= 640) return r; const [c, p] = r.split(' · '); return [c.length > 20 ? c.slice(0, 19) + '…' : c, p]; } } } } }
+        // ● e rótulo em azul = anunciado na Webmotors agora; no celular o rótulo vai em duas linhas (carro / placa)
+        y: { grid: { display: false }, border: { color: cor('--axis') }, ticks: { color: c => lw[c.index].wm ? cor('--s1') : cor('--muted'), autoSkip: false,
+          callback: (v, i) => { const r = (lw[i].wm ? '● ' : '') + lw[i].rot; if (innerWidth >= 640) return r; const [c, p] = r.split(' · '); return [c.length > 22 ? c.slice(0, 21) + '…' : c, p]; } } } } }
   });
 }
 
@@ -655,7 +655,7 @@ const DEMO = (() => {
     portalGeral: () => ({ equipe }),
     entrarVendedor: (nome, chave) => { if (String(chave) !== '1234') throw new Error('Chave incorreta. (Na prévia, use 1234.)');
       return { nome, hoje, meta: 15, fonteMeta: 'Meta individual', metas: { minima: 25, geral: 30 }, semVendedor: 2,
-        operacional: { inicio: addDias(hoje, -120), veiculos: carros.map((c, i) => ({ rot: `${c} 2022 · ABC-${1000 + i}`, n: ri(0, 14), ml: ri(0, 20), wm: true })) },
+        operacional: { inicio: addDias(hoje, -120), veiculos: carros.map((c, i) => ({ rot: `${c} 2022 · ABC-${1000 + i}`, n: ri(0, 14), ml: ri(0, 20), wm: i % 3 !== 2 })) },
         regras: { fixo: 300 }, bonus: [{ vendas: 10, valor: 300 }, { vendas: 15, valor: 800 }, { vendas: 20, valor: 1200 }],
         equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome].map(v => ({ ...v, pagamento: pick(['Pendente', 'Pago']) })),
         leads: Array.from({ length: 40 }, (_, k) => ({ data: addDias(hoje, -ri(0, 60)), nome: 'Cliente ' + (k + 1), telefone: '(11) 9' + ri(1000, 9999) + '-' + ri(1000, 9999), veiculo: pick(carros), origem: pick(['WebMotors', 'MercadoLivre', 'Whatsapp']),
