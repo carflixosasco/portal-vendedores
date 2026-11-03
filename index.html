@@ -108,6 +108,21 @@ tr:last-child td { border-bottom: 0; }
 .erro { color: var(--crit); font-size: 13px; margin-top: 10px; min-height: 1em; }
 .dica { font-size: 13px; color: var(--ink2); background: var(--brand-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
 
+/* simulador */
+.campo { display: block; margin-bottom: 16px; }
+.campo > span { display: block; font-size: 13px; color: var(--ink2); margin-bottom: 4px; }
+.inp { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 16px; font-variant-numeric: tabular-nums; }
+.inp.peq { width: 96px; text-align: right; }
+.passo { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.passo .inp { width: 80px; text-align: center; }
+.atalhos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.atalhos .btn { font-size: 13px; padding: 5px 10px; }
+.res-l { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
+.res-l span:first-child { color: var(--ink2); }
+.res-l b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.res-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-top: 14px; }
+.res-total b { font-size: 30px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 640px) {
   main { padding: 16px; }
   .top { padding: 10px 16px; }
@@ -182,7 +197,7 @@ function api(fn, ...args) {
 function marcarUrl(v) {
   if (NO_GOOGLE) {
     const q = new URLSearchParams(location.search); if (v) q.set('v', v); else q.delete('v');
-    if (S.pagina === 'desempenho') q.set('p', 'desempenho'); else q.delete('p');
+    if (S.pagina !== 'vendas') q.set('p', S.pagina); else q.delete('p');
     try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch (e) {}
     return;
   }
@@ -190,15 +205,15 @@ function marcarUrl(v) {
   try { google.script.history.push(null, p); } catch (e) {}
 }
 
-// duas páginas com a mesma chave: Vendas (padrão) e Desempenho individual (?p=desempenho)
+// três páginas com a mesma chave: Vendas (padrão), Desempenho individual (?p=desempenho) e Simulador (?p=simulador)
+const PAGINAS = { vendas: 'Vendas', desempenho: 'Desempenho individual', simulador: 'Simulador do mês' };
 const S = { geral: null, eu: null, periodo: 'mes', desloc: 0,
-            pagina: new URLSearchParams(location.search).get('p') === 'desempenho' ? 'desempenho' : 'vendas' };
-function mostrar() { S.pagina === 'desempenho' ? viewDesempenho() : viewVendedor(); }
+            pagina: PAGINAS[new URLSearchParams(location.search).get('p')] ? new URLSearchParams(location.search).get('p') : 'vendas' };
+function mostrar() { S.pagina === 'desempenho' ? viewDesempenho() : S.pagina === 'simulador' ? viewSimulador() : viewVendedor(); }
 function irPagina(p) { S.pagina = p; marcarUrl(S.eu ? S.eu.nome : ''); window.scrollTo(0, 0); mostrar(); }
 function abas() {
   return `<div class="periodos" role="tablist" aria-label="Página" style="margin-bottom:16px">
-    <button role="tab" aria-pressed="${S.pagina === 'vendas'}" onclick="irPagina('vendas')">Vendas</button>
-    <button role="tab" aria-pressed="${S.pagina === 'desempenho'}" onclick="irPagina('desempenho')">Desempenho individual</button></div>`;
+    ${Object.entries(PAGINAS).map(([k, t]) => `<button role="tab" aria-pressed="${S.pagina === k}" onclick="irPagina('${k}')">${t}</button>`).join('')}</div>`;
 }
 const charts = {};
 function limparGraficos() { Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; }); }
@@ -395,11 +410,11 @@ function viewVendedor() {
     { type: 'line', label: 'Meta', data: hist.map(h => metaIntervalo(eu.meta, h.ini, h.fim)), borderDash: [5, 4], pointRadius: 3 }], { fmt: dec });
 }
 
+const ADIC = ['Despachante', 'Seguro Gestauto', 'Seguro auto', 'Carro na troca', 'Financiamento'];
 // cada carro vendido com o valor de cada item da comissão (valor fixo + adicionais marcados pelo gestor)
 function tabelaComissao(vs, regras) {
   if (!vs.length) return '<div class="vazio">Nenhuma venda neste período.</div>';
   regras = regras || { fixo: 0 };
-  const ADIC = ['Despachante', 'Seguro Gestauto', 'Seguro auto', 'Carro na troca', 'Financiamento'];
   // valor de cada adicional lançado pelo gestor naquela venda (muda de carro para carro)
   const valor = (v, a) => { const x = v.valores ? v.valores[a] : 0; return x > 0 ? x : null; };
   const cols = ADIC.filter(a => vs.some(v => valor(v, a) != null));
@@ -411,6 +426,116 @@ function tabelaComissao(vs, regras) {
   return `<div class="tab"><table><thead><tr><th>Data</th><th>Veículo</th><th class="n">Venda</th>${cols.map(a => `<th class="n">${esc(a)}</th>`).join('')}<th class="n">Comissão</th></tr></thead>
     <tbody>${linhas}${total}</tbody></table></div>`;
 }
+
+// ================= SIMULADOR DO MÊS =================
+// parte do que o vendedor já tem lançado no mês; o salário fixo e as simulações ficam só neste aparelho
+const numero = v => Math.max(0, Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) || 0));
+function simCarregar(eu) {
+  let salvo = {}; try { salvo = JSON.parse(lsGet('sim_' + eu.nome) || '{}') || {}; } catch (e) {}
+  // vendas e adicionais simulados valem só para o mês em que foram digitados; o salário fixo fica
+  const mesmoMes = salvo.mes === eu.hoje.slice(0, 7);
+  const adic = {};
+  ADIC.forEach(a => {
+    // valor sugerido = média do que o gestor já lançou para você nesse adicional
+    const xs = eu.vendas.map(v => v.valores ? v.valores[a] : 0).filter(x => x > 0), s = (salvo.adic || {})[a] || {};
+    adic[a] = { qtd: mesmoMes ? numero(s.qtd) : 0, valor: s.valor != null ? numero(s.valor) : xs.length ? Math.round(soma(xs, x => x) / xs.length) : 0 };
+  });
+  return { salario: numero(salvo.salario), extra: mesmoMes ? numero(salvo.extra) : 0, adic };
+}
+function simSalvar() { lsSet('sim_' + S.eu.nome, JSON.stringify({ ...S.sim, mes: S.eu.hoje.slice(0, 7) })); }
+// números do mês atual: o que já está lançado e o que entra com a simulação
+function simCalc(extra) {
+  const eu = S.eu, sim = S.sim, mesI = intervalo('mes', eu.hoje, 0), fixo = (eu.regras || {}).fixo || 0;
+  const feitas = eu.vendas.filter(v => v.data >= mesI.ini && v.data <= mesI.fim);
+  const comFeita = soma(feitas, v => v.comissao);
+  const adicSim = soma(ADIC, a => Math.min(sim.adic[a].qtd, extra) * sim.adic[a].valor);
+  const total = feitas.length + extra, faixas = eu.bonus || [];
+  const faixa = faixas.filter(f => total >= f.vendas).pop();
+  const bonus = faixa ? faixa.valor : 0, comSim = extra * fixo + adicSim;
+  return { feitas: feitas.length, comFeita, extra, fixo, adicSim, comSim, total, bonus, faixa,
+           final: sim.salario + comFeita + comSim + bonus };
+}
+function viewSimulador() {
+  limparGraficos();
+  const eu = S.eu, hoje = eu.hoje;
+  const mes = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'][+hoje.slice(5, 7) - 1];
+  $('#chip').textContent = eu.nome;
+  if (!S.sim || S.simDe !== eu.nome) { S.sim = simCarregar(eu); S.simDe = eu.nome; }
+  const sim = S.sim, c = simCalc(sim.extra);
+  // atalhos: quanto falta para a meta e para cada faixa de bônus
+  const atalhos = [];
+  if (eu.meta && c.feitas < eu.meta) atalhos.push({ n: Math.ceil(eu.meta) - c.feitas, t: `Bater minha meta (${dec(eu.meta)})` });
+  (eu.bonus || []).forEach(f => {
+    if (c.feitas >= f.vendas) return;
+    const n = f.vendas - c.feitas, igual = atalhos.find(a => a.n === n);
+    if (igual) igual.t += ` + bônus de ${brl(f.valor)}`; else atalhos.push({ n, t: `Bônus de ${brl(f.valor)} (${f.vendas} vendas)` });
+  });
+  $('#app').innerHTML = `<div class="cab"><div><h1>Simulador de ${mes}</h1>
+      <div class="sub">Imagine quantas vendas ainda vai fazer e veja quanto fecha o mês · ${int(c.feitas)} venda(s) já lançada(s) pelo gestor</div></div>
+      <span class="esp"></span>
+      <button class="btn" onclick="sair()">Sair</button></div>
+    ${abas()}
+    <div class="dica">O salário fixo e os números que você digitar aqui ficam salvos só neste aparelho; ninguém mais vê. A comissão de cada venda simulada usa o valor fixo por venda definido pelo gestor (${brl(c.fixo)}) mais os adicionais que você marcar.</div>
+    <div class="grid">
+      <div class="card"><h3>Seus números</h3><p class="sub">Mude os valores e o resultado ao lado se atualiza</p>
+        <label class="campo"><span>Salário fixo mensal (R$)</span>
+          <input class="inp" id="sSal" inputmode="numeric" placeholder="0" value="${sim.salario || ''}" oninput="simMudou()"></label>
+        <div class="campo"><span>Vendas a mais até o fim de ${mes}</span>
+          <div class="passo"><button class="btn" onclick="simExtra(-1)" aria-label="Menos uma venda">−</button>
+            <input class="inp" id="sExtra" inputmode="numeric" value="${sim.extra}" oninput="simMudou()" aria-label="Vendas a mais">
+            <button class="btn" onclick="simExtra(1)" aria-label="Mais uma venda">+</button></div>
+          ${atalhos.length ? `<div class="atalhos">${atalhos.map(a => `<button class="btn" onclick="simExtra(0, ${a.n})">${esc(a.t)}: +${a.n}</button>`).join('')}</div>` : ''}</div>
+        <div class="campo"><span>Adicionais nas vendas simuladas</span>
+          <div class="tab"><table><thead><tr><th>Adicional</th><th class="n">Em quantas vendas</th><th class="n">Valor de cada (R$)</th></tr></thead><tbody>
+            ${ADIC.map((a, i) => `<tr><td>${esc(a)}</td>
+              <td class="n"><input class="inp peq" id="sQ${i}" inputmode="numeric" value="${sim.adic[a].qtd || ''}" placeholder="0" oninput="simMudou()" aria-label="${esc(a)}: em quantas vendas"></td>
+              <td class="n"><input class="inp peq" id="sV${i}" inputmode="numeric" value="${sim.adic[a].valor || ''}" placeholder="0" oninput="simMudou()" aria-label="${esc(a)}: valor de cada"></td></tr>`).join('')}
+          </tbody></table></div>
+          <div class="t-s">O valor de cada adicional vem preenchido com a média do que você já recebeu nele. Ajuste se quiser.</div></div>
+      </div>
+      <div class="card"><h3>Faturamento previsto em ${mes}</h3><p class="sub">Salário + comissões + bônus, se as vendas simuladas acontecerem</p>
+        <div id="sRes"></div></div>
+    </div>
+    <div class="card full"><h3>E se…</h3><p class="sub">Quanto o mês fecharia em cada cenário, com o mesmo salário e a mesma média por venda simulada</p>
+      <div id="sCen"></div></div>`;
+  simResultado();
+}
+function simResultado() {
+  const eu = S.eu, c = simCalc(S.sim.extra), faixas = eu.bonus || [];
+  const prox = faixas.find(f => c.total < f.vendas), meta = eu.meta;
+  const st = meta ? (c.total >= meta ? { c: 'good', t: 'Meta batida' } : { c: 'warn', t: `faltariam ${int(Math.ceil(meta) - c.total)} para a meta` }) : null;
+  $('#sRes').innerHTML = `
+    <div class="res-l"><span>Salário fixo</span><b>${brl(S.sim.salario)}</b></div>
+    <div class="res-l"><span>Comissão já lançada (${int(c.feitas)} venda${c.feitas === 1 ? '' : 's'})</span><b>${brl(c.comFeita)}</b></div>
+    <div class="res-l"><span>Comissão das vendas simuladas (${int(c.extra)} × ${brl(c.fixo)}${c.adicSim ? ` + ${brl(c.adicSim)} de adicionais` : ''})</span><b>${brl(c.comSim)}</b></div>
+    <div class="res-l"><span>Bônus do mês (${int(c.total)} vendas no total)</span><b>${brl(c.bonus)}</b></div>
+    <div class="res-total"><span>Total previsto</span><b>${brl(c.final)}</b></div>
+    ${meta ? `<div class="bar" style="margin-top:14px"><span style="width:${Math.min(100, c.total / meta * 100)}%"></span>${c.feitas && c.feitas < meta ? `<i style="left:calc(${c.feitas / meta * 100}% - 1px)" title="Já lançadas"></i>` : ''}</div>` : ''}
+    <div class="t-s">${st ? `<span class="st st-${st.c}">${st.t}</span><span>${int(c.total)} de ${dec(meta)} vendas</span>` : ''}
+      ${prox ? `<span>com mais ${int(prox.vendas - c.total)} venda(s) o bônus sobe para ${brl(prox.valor)}</span>` : faixas.length ? '<span class="st st-good">Bônus máximo</span>' : ''}</div>`;
+  // cenários: hoje, a simulação, a meta e cada faixa de bônus ainda não alcançada
+  const porVenda = c.extra ? c.comSim / c.extra : c.fixo;
+  const cen = [{ t: 'Só o que já está lançado', n: 0 }];
+  if (c.extra) cen.push({ t: 'A sua simulação', n: c.extra });
+  if (meta && c.feitas < meta) cen.push({ t: 'Batendo a meta', n: Math.ceil(meta) - c.feitas });
+  faixas.forEach(f => { if (c.feitas < f.vendas) cen.push({ t: `Bônus de ${brl(f.valor)}`, n: f.vendas - c.feitas }); });
+  const vistos = new Set(), linhas = cen.filter(x => !vistos.has(x.n) && vistos.add(x.n)).sort((a, b) => a.n - b.n).map(x => {
+    const tot = c.feitas + x.n, fx = faixas.filter(f => tot >= f.vendas).pop(), b = fx ? fx.valor : 0;
+    const fim = S.sim.salario + c.comFeita + x.n * porVenda + b;
+    return `<tr${x.n === c.extra ? ' style="background:var(--brand-soft)"' : ''}><td>${esc(x.t)}</td><td class="n">+${int(x.n)}</td><td class="n">${int(tot)}</td><td class="n">${brl(b)}</td><td class="n"><b>${brl(fim)}</b></td></tr>`;
+  }).join('');
+  $('#sCen').innerHTML = `<div class="tab"><table><thead><tr><th>Cenário</th><th class="n">Vendas a mais</th><th class="n">Vendas no mês</th><th class="n">Bônus</th><th class="n">Total do mês</th></tr></thead>
+    <tbody>${linhas}</tbody></table></div>
+    <div class="t-s">Cada venda a mais conta ${brl(porVenda)} de comissão${c.extra ? ' (média da sua simulação)' : ' (valor fixo por venda)'}. Valores são uma estimativa; o que vale é o que o gestor lançar.</div>`;
+}
+function simMudou() {
+  const sim = S.sim;
+  sim.salario = numero($('#sSal').value);
+  sim.extra = numero($('#sExtra').value);
+  ADIC.forEach((a, i) => { sim.adic[a] = { qtd: numero($('#sQ' + i).value), valor: numero($('#sV' + i).value) }; });
+  simSalvar(); simResultado();
+}
+function simExtra(d, fixo) { const el = $('#sExtra'); el.value = fixo != null ? fixo : Math.max(0, numero(el.value) + d); simMudou(); }
 
 // ================= DESEMPENHO INDIVIDUAL (mesmo conteúdo do painel original do vendedor) =================
 const ETAPAS = ['Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado'];
