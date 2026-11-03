@@ -206,10 +206,10 @@ function marcarUrl(v) {
 }
 
 // três páginas com a mesma chave: Vendas (padrão), Desempenho individual (?p=desempenho) e Simulador (?p=simulador)
-const PAGINAS = { vendas: 'Vendas', desempenho: 'Desempenho individual', simulador: 'Simulador do mês' };
+const PAGINAS = { vendas: 'Vendas', desempenho: 'Desempenho individual', simulador: 'Simulador do mês', operacional: 'Operacional' };
 const S = { geral: null, eu: null, periodo: 'mes', desloc: 0,
             pagina: PAGINAS[new URLSearchParams(location.search).get('p')] ? new URLSearchParams(location.search).get('p') : 'vendas' };
-function mostrar() { S.pagina === 'desempenho' ? viewDesempenho() : S.pagina === 'simulador' ? viewSimulador() : viewVendedor(); }
+function mostrar() { ({ desempenho: viewDesempenho, simulador: viewSimulador, operacional: viewOperacional }[S.pagina] || viewVendedor)(); }
 function irPagina(p) { S.pagina = p; marcarUrl(S.eu ? S.eu.nome : ''); window.scrollTo(0, 0); mostrar(); }
 function abas() {
   return `<div class="periodos" role="tablist" aria-label="Página" style="margin-bottom:16px">
@@ -537,6 +537,43 @@ function simMudou() {
 }
 function simExtra(d, fixo) { const el = $('#sExtra'); el.value = fixo != null ? fixo : Math.max(0, numero(el.value) + d); simMudou(); }
 
+// ================= OPERACIONAL: leads por veículo em estoque (mesmo gráfico da Visão do gestor) =================
+// A Webmotors cobra por lead (prioridade: ordena e fica em destaque); o Mercado Livre é plano fixo.
+const LIMITE_LEADS_WM = 10;
+function viewOperacional() {
+  limparGraficos();
+  const eu = S.eu, op = eu.operacional || { inicio: '', veiculos: [] };
+  $('#chip').textContent = eu.nome;
+  const lw = op.veiculos.slice().sort((a, b) => b.n - a.n || b.ml - a.ml || a.rot.localeCompare(b.rot));
+  const semLead = lw.filter(x => x.wm && !x.n).length;
+  $('#app').innerHTML = `<div class="cab"><div><h1>Operacional</h1>
+      <div class="sub">Procura de cada carro do estoque nos portais · atualizado em ${dataBR(eu.hoje)}</div></div>
+      <span class="esp"></span>
+      <button class="btn" onclick="sair()">Sair</button></div>
+    ${abas()}
+    <div class="card full"><h3>Leads por veículo em estoque · Webmotors e Mercado Livre</h3>
+      <p class="sub">${lw.length ? `<b>Webmotors (pago por lead, prioridade): ${int(soma(lw, x => x.n))} leads</b> · Mercado Livre (plano fixo): ${int(soma(lw, x => x.ml))} leads · desde ${dataBR(op.inicio)} · ${lw.length} veículos ainda em estoque · cruzamento pela placa · ordenado pelos leads da Webmotors · em vermelho: mais de ${LIMITE_LEADS_WM} leads da Webmotors` : 'Sem dados de estoque ainda.'}</p>
+      ${lw.length ? `<div class="ch" style="height:${Math.max(180, lw.length * 34 + 60)}px"><canvas id="gLeadsWm" role="img" aria-label="Leads da Webmotors e do Mercado Livre por veículo em estoque"></canvas></div>` : ''}
+      ${semLead ? `<div class="t-s" style="margin-top:8px"><span class="st st-warn">${int(semLead)} veículo(s) publicado(s) na Webmotors ainda sem lead</span></div>` : ''}
+    </div>`;
+  const el = document.getElementById('gLeadsWm'); if (!el) return;
+  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  charts.gLeadsWm = new Chart(el, {
+    type: 'bar',
+    data: { labels: lw.map(x => x.rot), datasets: [
+      { label: 'Webmotors (pago por lead)', data: lw.map(x => x.n), backgroundColor: lw.map(x => x.n > LIMITE_LEADS_WM ? cor('--crit') : cor('--s1')), borderRadius: 4, borderSkipped: 'start', borderWidth: 0, maxBarThickness: 14 },
+      { label: 'Mercado Livre (plano fixo)', data: lw.map(x => x.ml), backgroundColor: cor('--s4'), borderRadius: 4, borderSkipped: 'start', borderWidth: 0, maxBarThickness: 14 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8, color: cor('--ink2') } },
+        tooltip: { backgroundColor: cor('--card'), titleColor: cor('--ink'), bodyColor: cor('--ink2'), footerColor: cor('--ink2'), borderColor: cor('--border'), borderWidth: 1, padding: 10,
+          callbacks: { footer: items => `Total: ${int(lw[items[0].dataIndex].n + lw[items[0].dataIndex].ml)} leads` } } },
+      scales: { x: { beginAtZero: true, grid: { color: cor('--grid') }, border: { display: false }, ticks: { color: cor('--muted'), precision: 0 } },
+        // no celular o rótulo vai em duas linhas (carro / placa) para não cortar
+        y: { grid: { display: false }, border: { color: cor('--axis') }, ticks: { color: cor('--muted'), autoSkip: false,
+          callback: (v, i) => { const r = lw[i].rot; if (innerWidth >= 640) return r; const [c, p] = r.split(' · '); return [c.length > 20 ? c.slice(0, 19) + '…' : c, p]; } } } } }
+  });
+}
+
 // ================= DESEMPENHO INDIVIDUAL (mesmo conteúdo do painel original do vendedor) =================
 const ETAPAS = ['Em atendimento', 'Agendado', 'Vendido', 'Perdido', 'Descartado'];
 const aberto = l => l.etapa === 'Em atendimento' || l.etapa === 'Agendado';
@@ -618,6 +655,7 @@ const DEMO = (() => {
     portalGeral: () => ({ equipe }),
     entrarVendedor: (nome, chave) => { if (String(chave) !== '1234') throw new Error('Chave incorreta. (Na prévia, use 1234.)');
       return { nome, hoje, meta: 15, fonteMeta: 'Meta individual', metas: { minima: 25, geral: 30 }, semVendedor: 2,
+        operacional: { inicio: addDias(hoje, -120), veiculos: carros.map((c, i) => ({ rot: `${c} 2022 · ABC-${1000 + i}`, n: ri(0, 14), ml: ri(0, 20), wm: true })) },
         regras: { fixo: 300 }, bonus: [{ vendas: 10, valor: 300 }, { vendas: 15, valor: 800 }, { vendas: 20, valor: 1200 }],
         equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome].map(v => ({ ...v, pagamento: pick(['Pendente', 'Pago']) })),
         leads: Array.from({ length: 40 }, (_, k) => ({ data: addDias(hoje, -ri(0, 60)), nome: 'Cliente ' + (k + 1), telefone: '(11) 9' + ri(1000, 9999) + '-' + ri(1000, 9999), veiculo: pick(carros), origem: pick(['WebMotors', 'MercadoLivre', 'Whatsapp']),
