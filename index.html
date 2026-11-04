@@ -124,16 +124,26 @@ tr:last-child td { border-bottom: 0; }
 .res-total b { font-size: 30px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 
 /* contato semanal com proprietários */
-.contato { border-top: 1px solid var(--grid); padding: 14px 0; }
-.ct-cab { font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
-.ct-pl { color: var(--muted); font-size: 13px; }
-.ct-prio { font-size: 12px; background: var(--brand-soft); color: var(--ink2); border-radius: 6px; padding: 1px 8px; }
-.ct-sub { font-size: 13px; color: var(--ink2); margin-top: 4px; }
-.ct-diag { font-size: 13px; margin-top: 8px; }
-.ct-msg { white-space: pre-wrap; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
-.ct-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.ct-resumo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; }
+.ct-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; font-size: 14px; color: var(--ink2); }
+.ct-sel { width: auto; padding: 6px 10px; font-size: 14px; margin-left: 4px; }
+.ct-lista { padding: 4px 14px; }
+.ct-item { border-bottom: 1px solid var(--grid); }
+.ct-item:last-child { border-bottom: 0; }
+.ct-item summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0; cursor: pointer; list-style: none; }
+.ct-item summary::-webkit-details-marker { display: none; }
+.ct-item summary::before { content: "▸"; color: var(--muted); width: 10px; }
+.ct-item[open] summary::before { content: "▾"; }
+.ct-car { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
+.ct-car span { font-size: 12px; color: var(--muted); }
+.ct-prio { font-size: 12px; background: var(--brand-soft); color: var(--ink2); border-radius: 6px; padding: 1px 8px; white-space: nowrap; }
+.ct-acoes { display: flex; gap: 6px; align-items: center; }
+.ct-acoes .btn { padding: 4px 10px; font-size: 13px; }
 .ct-acoes a.btn { text-decoration: none; }
-.ct-env { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink2); margin-left: 4px; }
+.ct-env { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink2); }
+.ct-det { padding: 0 0 12px 22px; }
+.ct-sub { font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.ct-msg { white-space: pre-wrap; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
 
 @media (max-width: 640px) {
   main { padding: 16px; }
@@ -219,13 +229,16 @@ function marcarUrl(v) {
 
 // três páginas com a mesma chave: Vendas (padrão), Desempenho individual (?p=desempenho) e Simulador (?p=simulador)
 const PAGINAS = { vendas: 'Vendas', desempenho: 'Desempenho individual', simulador: 'Simulador do mês', operacional: 'Operacional' };
+// subpáginas: abrem de dentro de uma aba (contatos = lista semanal de proprietários, dentro de Operacional)
+const SUBPAGINAS = { contatos: 'operacional' };
+const pInicial = new URLSearchParams(location.search).get('p');
 const S = { geral: null, eu: null, periodo: 'mes', desloc: 0,
-            pagina: PAGINAS[new URLSearchParams(location.search).get('p')] ? new URLSearchParams(location.search).get('p') : 'vendas' };
-function mostrar() { ({ desempenho: viewDesempenho, simulador: viewSimulador, operacional: viewOperacional }[S.pagina] || viewVendedor)(); }
+            pagina: PAGINAS[pInicial] || SUBPAGINAS[pInicial] ? pInicial : 'vendas' };
+function mostrar() { ({ desempenho: viewDesempenho, simulador: viewSimulador, operacional: viewOperacional, contatos: viewContatos }[S.pagina] || viewVendedor)(); }
 function irPagina(p) { S.pagina = p; marcarUrl(S.eu ? S.eu.nome : ''); window.scrollTo(0, 0); mostrar(); }
 function abas() {
   return `<div class="periodos" role="tablist" aria-label="Página" style="margin-bottom:16px">
-    ${Object.entries(PAGINAS).map(([k, t]) => `<button role="tab" aria-pressed="${S.pagina === k}" onclick="irPagina('${k}')">${t}</button>`).join('')}</div>`;
+    ${Object.entries(PAGINAS).map(([k, t]) => `<button role="tab" aria-pressed="${S.pagina === k || SUBPAGINAS[S.pagina] === k}" onclick="irPagina('${k}')">${t}</button>`).join('')}</div>`;
 }
 const charts = {};
 function limparGraficos() { Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; }); }
@@ -587,47 +600,78 @@ function viewOperacional() {
   });
 }
 
-// contato semanal com os proprietários dos carros em que o vendedor é o responsável (gerado toda semana pelo Claude)
+// contato semanal com os proprietários (gerado toda semana pelo Claude). A lista traz todos os carros do estoque;
+// abre filtrada nos carros do vendedor e o filtro permite cobrir um colega ausente.
 const telOk = t => /^\d{10,11}$/.test(String(t || ''));
 const telBR = t => telOk(t) ? `(${t.slice(0, 2)}) ${t.slice(2, -4)}-${t.slice(-4)}` : t;
-const chaveEnvio = (m, x) => `env_${S.eu.nome}_${m.gerado}_${x.placa}`;
+const chaveEnvio = (m, x) => `env_${m.gerado}_${x.placa}`;
+const ctLista = () => (S.eu.mensagens || { gerado: '', itens: [] });
+const ctFiltro = () => S.ctVend || S.eu.nome;
+const ctItens = () => { const f = ctFiltro(); return ctLista().itens.map((x, i) => ({ ...x, i })).filter(x => f === 'Todos' || x.vend === f); };
+// cartão curto na aba Operacional; a lista fica numa página própria (?p=contatos)
 function blocoContatos() {
-  const m = S.eu.mensagens || { gerado: '', itens: [] };
-  if (!m.itens.length) return `<div class="card full" style="margin-top:16px"><h3>Contato semanal com proprietários</h3>
-    <div class="vazio">Nenhum carro seu na lista desta semana.</div></div>`;
-  const feitos = m.itens.filter(x => lsGet(chaveEnvio(m, x))).length;
-  return `<div class="card full" style="margin-top:16px">
-    <div class="cab" style="margin:0 0 4px"><div><h3>Contato semanal com proprietários</h3>
-      <p class="sub" style="margin:2px 0 0">Análise de cada carro seu, gerada em ${dataBR(m.gerado)}, com a mensagem pronta para enviar ao proprietário · ${int(feitos)} de ${int(m.itens.length)} marcadas como enviadas</p></div>
-      <span class="esp"></span><button class="btn" onclick="baixarContatos()">Baixar planilha (Excel)</button></div>
-    ${m.itens.map((x, i) => `<div class="contato">
-      <div class="ct-cab"><b>${esc(x.veic)}</b> <span class="ct-pl">${esc(x.placa)}</span> <span class="ct-prio">${esc(x.prio)}</span></div>
-      <div class="ct-sub">${esc(x.prop)} · ${esc(telBR(x.tel))} · ${int(x.dias)} dias em estoque · ${esc(x.preco)} · ${x.wm === 'Sim' ? '<span style="color:var(--s1)">● na Webmotors</span>' : 'fora da Webmotors'}</div>
-      <div class="ct-sub">Leads: ${int(x.l)} no total (Webmotors ${int(x.lw)} · Mercado Livre ${int(x.lm)}) · ${int(x.l7)} na última semana · ${int(x.ab)} em aberto · ${int(x.ag)} visita(s) agendada(s)</div>
-      <div class="ct-diag"><b>Análise:</b> ${esc(x.diag)}</div>
-      <div class="ct-msg">${esc(x.msg)}</div>
-      <div class="ct-acoes">
-        ${telOk(x.tel) ? `<a class="btn pri" href="https://wa.me/55${x.tel}?text=${encodeURIComponent(x.msg)}" target="_blank" rel="noopener">Abrir no WhatsApp com a mensagem</a>` : '<span class="st st-warn">Telefone do proprietário não cadastrado: fale com o gestor</span>'}
-        <button class="btn" onclick="copiarMsg(${i}, this)">Copiar mensagem</button>
-        <label class="ct-env"><input type="checkbox" ${lsGet(chaveEnvio(m, x)) ? 'checked' : ''} onchange="marcarEnvio(${i}, this.checked)"> Enviada</label>
-      </div></div>`).join('')}
+  const m = ctLista(), meus = m.itens.filter(x => x.vend === S.eu.nome), feitos = meus.filter(x => lsGet(chaveEnvio(m, x))).length;
+  return `<div class="card full ct-resumo" style="margin-top:16px">
+    <div><h3>Contato semanal com proprietários</h3>
+      <p class="sub" style="margin:2px 0 0">${m.itens.length ? `Gerado em ${dataBR(m.gerado)} · seus carros: <b>${int(meus.length)}</b> (${int(feitos)} enviada${feitos === 1 ? '' : 's'}) · estoque todo: ${int(m.itens.length)}` : 'A lista desta semana ainda não foi gerada.'}</p></div>
+    ${m.itens.length ? '<button class="btn pri" onclick="irPagina(\'contatos\')">Abrir lista →</button>' : ''}
   </div>`;
 }
+function viewContatos() {
+  limparGraficos();
+  const eu = S.eu, m = ctLista(), f = ctFiltro(), its = ctItens();
+  const vends = [...new Set(m.itens.map(x => x.vend))].sort((a, b) => { const p = v => v === eu.nome ? 0 : v === '—' ? 2 : 1; return p(a) - p(b) || a.localeCompare(b); });
+  const feitos = its.filter(x => lsGet(chaveEnvio(m, x))).length;
+  $('#chip').textContent = eu.nome;
+  $('#app').innerHTML = `<div class="cab"><div><h1>Contato semanal com proprietários</h1>
+      <div class="sub">Análise e mensagem pronta de cada carro · gerado em ${dataBR(m.gerado)}</div></div>
+      <span class="esp"></span>
+      <button class="btn" onclick="sair()">Sair</button></div>
+    ${abas()}
+    <div class="ct-barra">
+      <button class="btn" onclick="irPagina('operacional')">← Operacional</button>
+      <label>Carros de <select class="inp ct-sel" onchange="S.ctVend = this.value; viewContatos()">
+        ${vends.map(v => `<option value="${esc(v)}" ${v === f ? 'selected' : ''}>${v === eu.nome ? 'Meus carros' : v === '—' ? 'Sem vendedor responsável' : esc(v)}</option>`).join('')}
+        <option value="Todos" ${f === 'Todos' ? 'selected' : ''}>Todos os carros</option></select></label>
+      <span class="ct-cont">${int(its.length)} carro${its.length === 1 ? '' : 's'} · ${int(feitos)} enviada${feitos === 1 ? '' : 's'}</span>
+      <span class="esp"></span>
+      <button class="btn" onclick="baixarContatos()">Baixar planilha</button>
+    </div>
+    <div class="card full ct-lista">${its.length ? its.map(x => `<details class="ct-item">
+      <summary>
+        <span class="ct-car"><b>${esc(x.veic)}</b><span>${esc(x.placa)} · ${esc(x.prop)}${f === 'Todos' ? ` · ${esc(x.vend)}` : ''}</span></span>
+        <span class="ct-prio">${esc(String(x.prio).replace(/^\d+ - /, ''))}</span>
+        <span class="ct-acoes" onclick="event.stopPropagation()">
+          ${telOk(x.tel) ? `<a class="btn pri" href="https://wa.me/55${x.tel}?text=${encodeURIComponent(x.msg)}" target="_blank" rel="noopener" title="Abrir a conversa com a mensagem pronta">WhatsApp</a>` : '<span class="st st-warn" title="Telefone do proprietário não cadastrado: fale com o gestor">Sem telefone</span>'}
+          <button class="btn" onclick="copiarMsg(${x.i}, this)">Copiar</button>
+          <label class="ct-env"><input type="checkbox" ${lsGet(chaveEnvio(m, x)) ? 'checked' : ''} onchange="marcarEnvio(${x.i}, this.checked)"> Enviada</label>
+        </span>
+      </summary>
+      <div class="ct-det">
+        <div class="ct-sub">${esc(telBR(x.tel))} · ${int(x.dias)} dias em estoque · ${esc(x.preco)} · ${x.wm === 'Sim' ? '<span style="color:var(--s1)">● na Webmotors</span>' : 'fora da Webmotors'} · ${int(x.l)} leads (${int(x.l7)} na semana) · ${int(x.ab)} em aberto · ${int(x.ag)} visita(s)</div>
+        <div class="ct-sub"><b>Análise:</b> ${esc(x.diag)}</div>
+        <div class="ct-msg">${esc(x.msg)}</div>
+      </div></details>`).join('') : '<div class="vazio">Nenhum carro para este vendedor nesta semana.</div>'}</div>`;
+}
 function copiarMsg(i, btn) {
-  const txt = S.eu.mensagens.itens[i].msg, ok = () => { btn.textContent = 'Copiada ✓'; setTimeout(() => { btn.textContent = 'Copiar mensagem'; }, 2000); };
+  const txt = S.eu.mensagens.itens[i].msg, ok = () => { btn.textContent = 'Copiada ✓'; setTimeout(() => { btn.textContent = 'Copiar'; }, 2000); };
   if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(() => prompt('Copie a mensagem:', txt));
   else prompt('Copie a mensagem:', txt);
 }
-function marcarEnvio(i, feito) { const m = S.eu.mensagens; lsSet(chaveEnvio(m, m.itens[i]), feito ? '1' : null); viewOperacional(); }
-// planilha da semana em CSV (abre no Excel); separador ";" e BOM para acentos no Excel em português
+function marcarEnvio(i, feito) {
+  const m = S.eu.mensagens; lsSet(chaveEnvio(m, m.itens[i]), feito ? '1' : null);
+  const its = ctItens(), n = its.filter(x => lsGet(chaveEnvio(m, x))).length, c = document.querySelector('.ct-cont');
+  if (c) c.textContent = `${int(its.length)} carro${its.length === 1 ? '' : 's'} · ${int(n)} enviada${n === 1 ? '' : 's'}`;
+}
+// planilha do filtro atual em CSV (abre no Excel); separador ";" e BOM para acentos no Excel em português
 function baixarContatos() {
   const m = S.eu.mensagens, q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const cab = ['Prioridade', 'Proprietário', 'Telefone', 'WhatsApp', 'Placa', 'Veículo', 'Dias em estoque', 'Preço anunciado', 'Na Webmotors?', 'Leads total', 'Leads Webmotors', 'Leads Mercado Livre', 'Leads últimos 7 dias', 'Leads em aberto', 'Visitas agendadas', 'Análise', 'Mensagem', 'Enviada'];
-  const linhas = m.itens.map(x => [x.prio, x.prop, telBR(x.tel), telOk(x.tel) ? `https://wa.me/55${x.tel}` : '', x.placa, x.veic, x.dias, x.preco, x.wm, x.l, x.lw, x.lm, x.l7, x.ab, x.ag, x.diag, x.msg, lsGet(chaveEnvio(m, x)) ? 'Sim' : '']);
+  const cab = ['Vendedor', 'Prioridade', 'Proprietário', 'Telefone', 'WhatsApp', 'Placa', 'Veículo', 'Dias em estoque', 'Preço anunciado', 'Na Webmotors?', 'Leads total', 'Leads Webmotors', 'Leads Mercado Livre', 'Leads últimos 7 dias', 'Leads em aberto', 'Visitas agendadas', 'Análise', 'Mensagem', 'Enviada'];
+  const linhas = ctItens().map(x => [x.vend, x.prio, x.prop, telBR(x.tel), telOk(x.tel) ? `https://wa.me/55${x.tel}` : '', x.placa, x.veic, x.dias, x.preco, x.wm, x.l, x.lw, x.lm, x.l7, x.ab, x.ag, x.diag, x.msg, lsGet(chaveEnvio(m, x)) ? 'Sim' : '']);
   const csv = '﻿' + [cab, ...linhas].map(l => l.map(q).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `Contato_proprietarios_${S.eu.nome.split(' ')[0]}_${m.gerado}.csv`;
+  a.download = `Contato_proprietarios_${ctFiltro() === 'Todos' ? 'todos' : ctFiltro().split(' ')[0]}_${m.gerado}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
 }
 
@@ -714,8 +758,10 @@ const DEMO = (() => {
       return { nome, hoje, meta: 15, fonteMeta: 'Meta individual', metas: { minima: 25, geral: 30 }, semVendedor: 2,
         operacional: { inicio: addDias(hoje, -120), veiculos: carros.map((c, i) => ({ rot: `${c} 2022 · ABC-${1000 + i}`, n: ri(0, 14), ml: ri(0, 20), wm: i % 3 !== 2 })) },
         mensagens: { gerado: hoje, itens: [
-          { prio: '1 - Ajuste de preço', prop: 'Cliente Exemplo', tel: '11999990000', placa: 'ABC-1001', veic: 'Jeep Renegade 1.8 2022', dias: 45, preco: 'R$ 70.500', wm: 'Sim', l: 19, lw: 6, lm: 13, l7: 0, ab: 0, ag: 0, diag: 'Boa procura no início, mas nenhum lead novo há 12 dias.', msg: 'Olá, tudo bem? Passando para te dar um retorno sobre o Renegade. ☺️\n\nO carro teve uma boa procura no início...\n\nSeguimos firmes na missão da venda do seu carro. 🙏🏻' },
-          { prio: '5 - Conferir antes de enviar', prop: '(cadastro de teste)', tel: '(11) 99999-1111 — telefone inválido', placa: 'ABC-1002', veic: 'Hyundai i30 2015', dias: 53, preco: 'R$ 74.990', wm: 'Não', l: 13, lw: 4, lm: 9, l7: 2, ab: 4, ag: 0, diag: 'Proprietário sem cadastro.', msg: 'Olá, tudo bem [nome]?' }] },
+          { vend: 'Elivelton', prio: '1 - Ajuste de preço', prop: 'Cliente Exemplo', tel: '11999990000', placa: 'ABC-1001', veic: 'Jeep Renegade 1.8 2022', dias: 45, preco: 'R$ 70.500', wm: 'Sim', l: 19, lw: 6, lm: 13, l7: 0, ab: 0, ag: 0, diag: 'Boa procura no início, mas nenhum lead novo há 12 dias.', msg: 'Olá, tudo bem? Passando para te dar um retorno sobre o Renegade. ☺️\n\nO carro teve uma boa procura no início...\n\nSeguimos firmes na missão da venda do seu carro. 🙏🏻' },
+          { vend: 'Elivelton', prio: '3 - Manter', prop: 'Outro Cliente', tel: '11988887777', placa: 'ABC-1003', veic: 'Nissan Frontier 2.3 2019', dias: 30, preco: 'R$ 109.990', wm: 'Não', l: 18, lw: 7, lm: 11, l7: 3, ab: 6, ag: 6, diag: 'Ótima procura, 6 visitas.', msg: 'Olá, tudo bem? Passando com boas notícias sobre a Frontier. ☺️' },
+          { vend: 'João Vitor', prio: '2 - Exposição', prop: 'Cliente do João', tel: '11977776666', placa: 'ABC-1004', veic: 'VW Cross Up 1.0 TSI 2019', dias: 24, preco: 'R$ 62.990', wm: 'Sim', l: 2, lw: 1, lm: 1, l7: 1, ab: 1, ag: 1, diag: 'Modelo raro.', msg: 'Olá, tudo bem? Passando para te atualizar sobre o Cross Up. ☺️' },
+          { vend: '—', prio: '5 - Conferir antes de enviar', prop: '(cadastro de teste)', tel: '(11) 99999-1111 — telefone inválido', placa: 'ABC-1002', veic: 'Hyundai i30 2015', dias: 53, preco: 'R$ 74.990', wm: 'Não', l: 13, lw: 4, lm: 9, l7: 2, ab: 4, ag: 0, diag: 'Proprietário sem cadastro.', msg: 'Olá, tudo bem [nome]?' }] },
         regras: { fixo: 300 }, bonus: [{ vendas: 10, valor: 300 }, { vendas: 15, valor: 800 }, { vendas: 20, valor: 1200 }],
         equipe: Object.values(vendas).flat().map(v => v.data), vendas: vendas[nome].map(v => ({ ...v, pagamento: pick(['Pendente', 'Pago']) })),
         leads: Array.from({ length: 40 }, (_, k) => ({ data: addDias(hoje, -ri(0, 60)), nome: 'Cliente ' + (k + 1), telefone: '(11) 9' + ri(1000, 9999) + '-' + ri(1000, 9999), veiculo: pick(carros), origem: pick(['WebMotors', 'MercadoLivre', 'Whatsapp']),
