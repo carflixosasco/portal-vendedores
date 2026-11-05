@@ -184,6 +184,19 @@ tr:last-child td { border-bottom: 0; }
 .kb-alerta { font-size: 13px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--ink); }
 .kb-nota { font-size: 13px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--brand-soft); color: var(--ink); font-weight: 600; }
 .kb-trava { font-size: 13px; margin-top: 8px; color: var(--crit); font-weight: 600; }
+.kb-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+.kb-sn { display: inline-flex; align-items: center; gap: 0; font-size: 12px; color: var(--muted); }
+.kb-sn button { border: 1px solid var(--axis); background: var(--card); color: var(--ink2); font-size: 12px; padding: 3px 10px; cursor: pointer; }
+.kb-sn button:first-of-type { margin-left: 6px; border-radius: 6px 0 0 6px; }
+.kb-sn button:last-of-type { border-left: 0; border-radius: 0 6px 6px 0; }
+.kb-sn button.on { background: var(--surface); color: var(--ink); font-weight: 650; box-shadow: inset 0 0 0 1px var(--ink2); }
+.kb-sn button.on.sim { background: var(--good); border-color: var(--good); color: #fff; box-shadow: none; }
+.kb-mais { border: 1px dashed var(--axis); background: none; color: var(--ink2); font-size: 12px; border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+.kb-mais:hover { border-color: var(--brand); color: var(--brand); }
+.kb-obs { font-size: 13px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--ink); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
+.kb-obs small { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; white-space: normal; }
+.kb-obs-ed { margin-top: 8px; }
+.kb-obs-ed textarea { width: 100%; font-size: 14px; resize: vertical; font-family: inherit; }
 .kb-acao { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .kb-acao .btn { font-size: 13px; padding: 6px 12px; }
 .kb-fim { text-align: center; padding: 16px; margin-top: 16px; border-radius: 10px; background: color-mix(in srgb, var(--good) 12%, transparent); color: var(--good-ink); font-weight: 650; }
@@ -731,10 +744,13 @@ function kbDados() {
   if (!d || !Array.isArray(d.vendas) || !d.vendas.length) d = { ver: 3, atual: 'v1', vendas: [{ id: 'v1', nome: '', feitos: [], calc: {} }] };
   // quando um passo novo entra no meio, os passos já marcados depois dele andam uma posição
   // v2: passo 11 (validar com o financeiro) · v3: passo 3 (quitação do financiamento do carro na troca)
-  const anda = (de) => d.vendas.forEach(v => { v.feitos = (v.feitos || []).map(i => i >= de ? i + 1 : i); });
+  const anda = (de) => d.vendas.forEach(v => {
+    v.feitos = (v.feitos || []).map(i => i >= de ? i + 1 : i);
+    const o = {}; Object.keys(v.obs || {}).forEach(k => { o[+k >= de ? +k + 1 : k] = v.obs[k]; }); v.obs = o;
+  });
   if (!d.ver || d.ver < 2) { anda(10); d.ver = 2; }
   if (d.ver < 3) { anda(2); d.ver = 3; }
-  S.kb = d; S.kbDe = S.eu.nome; S.kbAbertos = new Set(); S.kbAviso = null; return d;
+  S.kb = d; S.kbDe = S.eu.nome; S.kbAbertos = new Set(); S.kbObs = new Set(); S.kbAviso = null; return d;
 }
 const kbVenda = () => { const d = kbDados(); return d.vendas.find(v => v.id === d.atual) || d.vendas[0]; };
 const kbSalvar = () => lsSet(kbChave(), JSON.stringify(S.kb));
@@ -746,9 +762,18 @@ function viewBase() {
   const passo = (p, i) => {
     const feito = feitos.has(i), aberto = i === atual || S.kbAbertos.has(i) || S.kbAviso === i;
     const falta = (p.req || []).filter(r => !feitos.has(r));
+    const ob = (v.obs || {})[i], editando = S.kbObs.has(i);
+    const obsHtml = editando
+      ? `<div class="kb-obs-ed"><textarea class="inp" id="kbObs_${i}" rows="2" maxlength="500" placeholder="Ex.: Cliente já foi ao cartório, mas estava fechado." oninput="kbObsTexto(${i}, this.value)">${esc(ob ? ob.t : '')}</textarea>
+          <div class="kb-acao"><button class="btn" onclick="kbObsAbrir(${i}, false)">Pronto</button>${ob ? `<button class="btn" onclick="kbObsApagar(${i})">Apagar observação</button>` : ''}</div></div>`
+      : ob ? `<div class="kb-obs" onclick="kbObsAbrir(${i}, true)" title="Toque para editar">📝 ${esc(ob.t)}<small>${ob.em ? dataHora(ob.em) + ' · ' : ''}toque para editar</small></div>` : '';
     return `<div class="kb-passo${feito ? ' feito' : ''}${i === atual ? ' atual' : ''}">
       <button class="kb-num" onclick="kbMarcar(${i})" aria-pressed="${feito}" aria-label="${feito ? 'Desmarcar' : 'Marcar como feito'}: passo ${i + 1}">${feito ? '✓' : i + 1}</button>
       <div class="kb-corpo"><button class="kb-t" onclick="kbAbrir(${i})" aria-expanded="${aberto}">${esc(p.t)}${i === atual ? '<span class="kb-tag">Você está aqui</span>' : ''}${feito && p.marco ? `<span class="kb-tag ok">${p.marco}</span>` : ''}</button>
+        <div class="kb-ctl"><span class="kb-sn" role="group" aria-label="Passo ${i + 1} feito?">Feito?
+            <button class="${feito ? 'on sim' : ''}" aria-pressed="${feito}" onclick="kbFeito(${i}, true)">Sim</button><button class="${feito ? '' : 'on'}" aria-pressed="${!feito}" onclick="kbFeito(${i}, false)">Não</button></span>
+          ${!ob && !editando ? `<button class="kb-mais" onclick="kbObsAbrir(${i}, true)">+ Observação</button>` : ''}</div>
+        ${obsHtml}
         ${aberto ? `<div class="kb-o">${esc(p.o)}</div>
           ${p.n ? `<div class="kb-nota">📸 ${esc(p.n)}</div>` : ''}
           ${p.a ? `<div class="kb-alerta">⚠️ ${esc(p.a)}</div>` : ''}
@@ -771,7 +796,7 @@ function viewBase() {
     <div class="kb-topicos"><span class="kb-topico">🚗 Venda com carro na troca</span><span class="kb-topico breve">Mais guias em breve</span></div>
     <div class="kb-grid">
       <div class="card"><h3>Venda com carro na troca · ${total} passos</h3>
-        <p class="sub">Toque no número para marcar como feito. O próximo passo fica destacado. O progresso fica salvo só neste aparelho.</p>
+        <p class="sub">Marque cada passo em "Feito? Sim / Não" (dá para voltar atrás a qualquer momento) e use "+ Observação" para anotar o que aconteceu. O progresso fica salvo só neste aparelho.</p>
         <div class="kb-venda">
           <select class="inp" onchange="kbTrocar(this.value)" aria-label="Venda">${d.vendas.map((x, k) => `<option value="${x.id}"${x.id === v.id ? ' selected' : ''}>${esc(x.nome || 'Venda ' + (k + 1))}</option>`).join('')}</select>
           <input class="inp" value="${esc(v.nome)}" placeholder="Nome do cliente ou placa" oninput="kbNome(this.value)" aria-label="Nome do cliente ou placa">
@@ -839,9 +864,21 @@ function kbMarcar(i) {
   }
   S.kbAviso = null; v.feitos = [...f].sort((a, b) => a - b); kbSalvar(); viewBase();
 }
+// Feito? Sim / Não: volta um passo sem perder o resto do progresso
+function kbFeito(i, sim) { if (new Set(kbVenda().feitos).has(i) !== sim) kbMarcar(i); }
+// observação por passo (ex.: "cliente foi ao cartório, mas estava fechado"), salva enquanto digita
+const dataHora = ms => new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+function kbObsAbrir(i, abrir) {
+  const v = kbVenda(); v.obs = v.obs || {};
+  if (!abrir && v.obs[i] && !v.obs[i].t.trim()) { delete v.obs[i]; kbSalvar(); }
+  abrir ? S.kbObs.add(i) : S.kbObs.delete(i); viewBase();
+  if (abrir) { const el = document.getElementById('kbObs_' + i); if (el) { el.focus(); el.selectionStart = el.value.length; } }
+}
+function kbObsTexto(i, t) { const v = kbVenda(); v.obs = v.obs || {}; v.obs[i] = { t: t.slice(0, 500), em: Date.now() }; kbSalvar(); }
+function kbObsApagar(i) { const v = kbVenda(); if (v.obs) delete v.obs[i]; kbSalvar(); kbObsAbrir(i, false); }
 function kbAbrir(i) { const a = S.kbAbertos; a.has(i) ? a.delete(i) : a.add(i); viewBase(); }
 function kbNome(t) { kbVenda().nome = t.slice(0, 60); kbSalvar(); const o = document.querySelector('.kb-venda select option:checked'); if (o) o.textContent = t || 'Venda'; }
-function kbTrocar(id) { S.kb.atual = id; S.kbAbertos = new Set(); S.kbAviso = null; kbSalvar(); viewBase(); }
+function kbTrocar(id) { S.kb.atual = id; S.kbAbertos = new Set(); S.kbObs = new Set(); S.kbAviso = null; kbSalvar(); viewBase(); }
 function kbNova() { const d = kbDados(), id = 'v' + Date.now(); d.vendas.push({ id, nome: '', feitos: [], calc: {} }); kbTrocar(id); }
 function kbExcluir() {
   const d = kbDados(), v = kbVenda();
