@@ -145,6 +145,48 @@ tr:last-child td { border-bottom: 0; }
 .ct-sub { font-size: 13px; color: var(--ink2); margin-top: 4px; }
 .ct-msg { white-space: pre-wrap; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
 
+/* base de conhecimento: guia da venda com carro na troca */
+.kb-topicos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.kb-topico { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--brand); background: var(--brand-soft); color: var(--ink); border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 14px; }
+.kb-topico.breve { border-style: dashed; border-color: var(--axis); background: none; color: var(--muted); font-weight: 400; }
+.kb-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.kb-lado { display: flex; flex-direction: column; gap: 16px; }
+.kb-venda { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.kb-venda .inp { width: auto; flex: 1 1 160px; font-size: 14px; padding: 7px 10px; }
+.kb-venda select.inp { flex: 0 1 200px; }
+.kb-venda .btn { font-size: 13px; padding: 6px 10px; }
+.kb-prog { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.kb-fase { border-left: 3px solid var(--fc); padding-left: 14px; margin-top: 20px; }
+.kb-fase h4 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.kb-fase h4 small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.kb-fase > p { margin: 2px 0 10px; font-size: 13px; color: var(--ink2); }
+.kb-passo { display: flex; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: var(--surface); transition: border-color .12s; }
+.kb-passo.atual { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.kb-passo.feito .kb-t { color: var(--muted); }
+.kb-num { flex: none; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--axis); background: var(--card); display: grid; place-items: center; font-weight: 650; font-size: 13px; cursor: pointer; padding: 0; }
+.kb-num:hover { border-color: var(--good); }
+.kb-passo.feito .kb-num { background: var(--good); border-color: var(--good); color: #fff; }
+.kb-corpo { flex: 1; min-width: 0; }
+.kb-t { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 5px 0 0; font-weight: 600; cursor: pointer; }
+.kb-tag { display: inline-block; font-size: 11px; font-weight: 700; color: var(--brand); background: var(--brand-soft); border-radius: 6px; padding: 1px 7px; margin-left: 8px; vertical-align: 1px; }
+.kb-tag.ok { color: var(--good-ink); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.kb-o { font-size: 14px; color: var(--ink2); margin-top: 4px; }
+.kb-alerta { font-size: 13px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--ink); }
+.kb-trava { font-size: 13px; margin-top: 8px; color: var(--crit); font-weight: 600; }
+.kb-acao { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.kb-acao .btn { font-size: 13px; padding: 6px 12px; }
+.kb-fim { text-align: center; padding: 16px; margin-top: 16px; border-radius: 10px; background: color-mix(in srgb, var(--good) 12%, transparent); color: var(--good-ink); font-weight: 650; }
+.kb-al { border-bottom: 1px solid var(--grid); }
+.kb-al:last-child { border-bottom: 0; }
+.kb-al summary { padding: 9px 0; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: center; }
+.kb-al summary::-webkit-details-marker { display: none; }
+.kb-al summary::before { content: "▸"; color: var(--muted); width: 10px; }
+.kb-al[open] summary::before { content: "▾"; }
+.kb-al div { padding: 0 0 10px 18px; font-size: 13px; color: var(--ink2); }
+.kb-al div b { color: var(--ink); }
+.kb-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+@media (max-width: 860px) { .kb-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {
   main { padding: 16px; }
   .top { padding: 10px 16px; }
@@ -228,13 +270,13 @@ function marcarUrl(v) {
 }
 
 // três páginas com a mesma chave: Vendas (padrão), Desempenho individual (?p=desempenho) e Simulador (?p=simulador)
-const PAGINAS = { vendas: 'Vendas', desempenho: 'Desempenho individual', simulador: 'Simulador do mês', operacional: 'Operacional' };
+const PAGINAS = { vendas: 'Vendas', desempenho: 'Desempenho individual', simulador: 'Simulador do mês', operacional: 'Operacional', base: 'Base de conhecimento' };
 // subpáginas: abrem de dentro de uma aba (contatos = lista semanal de proprietários, dentro de Operacional)
 const SUBPAGINAS = { contatos: 'operacional' };
 const pInicial = new URLSearchParams(location.search).get('p');
 const S = { geral: null, eu: null, periodo: 'mes', desloc: 0,
             pagina: PAGINAS[pInicial] || SUBPAGINAS[pInicial] ? pInicial : 'vendas' };
-function mostrar() { ({ desempenho: viewDesempenho, simulador: viewSimulador, operacional: viewOperacional, contatos: viewContatos }[S.pagina] || viewVendedor)(); }
+function mostrar() { ({ desempenho: viewDesempenho, simulador: viewSimulador, operacional: viewOperacional, contatos: viewContatos, base: viewBase }[S.pagina] || viewVendedor)(); }
 function irPagina(p) { S.pagina = p; marcarUrl(S.eu ? S.eu.nome : ''); window.scrollTo(0, 0); mostrar(); }
 function abas() {
   return `<div class="periodos" role="tablist" aria-label="Página" style="margin-bottom:16px">
@@ -598,6 +640,131 @@ function viewOperacional() {
         y: { grid: { display: false }, border: { color: cor('--axis') }, ticks: { color: c => lw[c.index].wm ? cor('--s1') : cor('--muted'), autoSkip: false,
           callback: (v, i) => { const r = (lw[i].wm ? '● ' : '') + lw[i].rot; if (innerWidth >= 640) return r; const [c, p] = r.split(' · '); return [c.length > 22 ? c.slice(0, 21) + '…' : c, p]; } } } } }
   });
+}
+
+// ================= BASE DE CONHECIMENTO: guia passo a passo da venda com carro na troca =================
+// O progresso de cada venda fica salvo só neste aparelho (localStorage kb_troca_<nome>), nada vai para o servidor.
+const KB_TROCA = [
+  { fase: 'Fase 1 · Fechamento com o cliente', cor: '--s1', resumo: 'Contrato assinado, entrada ou sinal pago e cliente liberado. O carro principal ainda não sai.', passos: [
+    { t: 'Contrato do carro principal', o: 'Passe o contrato do carro que está sendo vendido.' },
+    { t: 'Consulta Cardados do carro na troca', o: 'Puxe a consulta pela placa do carro na troca. Multas e débitos encontrados entram na conta do cliente (anote na calculadora).', a: 'Apareceu alienação, leilão, roubo ou furto, sinistro, remarcação ou restrição? Pare e avise o gestor antes de seguir.' },
+    { t: 'Recolher a entrada e as dívidas do carro na troca', o: 'Receba a entrada e o pagamento das multas e débitos que apareceram no Cardados do carro na troca.' },
+    { t: 'Assinatura do contrato + entrada ou sinal', o: 'Recolha a assinatura do contrato e o pagamento da entrada ou do sinal. Depois disso, libere o cliente.', marco: 'Cliente liberado' }] },
+  { fase: 'Fase 2 · Carro na troca', cor: '--s4', resumo: 'O carro na troca precisa estar pago e com o ATPV emitido.', passos: [
+    { t: 'Laudo cautelar do carro na troca', o: 'Peça o laudo cautelar logo no começo desta fase e espere o resultado.', a: 'Laudo com apontamento grave? Avise o gestor antes de seguir.' },
+    { t: 'Pagamento da diferença total e dos débitos', o: 'Peça ao comprador o pagamento da diferença total e dos débitos do carro na troca. A calculadora mostra o valor.' },
+    { t: 'ATPV do carro na troca', o: 'Emita o ATPV do carro na troca só depois que todos os pagamentos estiverem efetivados.', req: [5] }] },
+  { fase: 'Fase 3 · Carro principal', cor: '--s3', resumo: 'O carro só sai com todos os pagamentos ok e o ATPV emitido.', passos: [
+    { t: 'Juntar os pagamentos do carro principal', o: 'Enquanto o cliente assina o ATPV do carro na troca, reúna os pagamentos do carro principal.' },
+    { t: 'Assinatura do financiamento (se houver)', o: 'Se a venda tiver financiamento, peça a assinatura do financiamento. Sem financiamento, é só marcar e seguir.' },
+    { t: 'Consulta Cardados do carro principal', o: 'Puxe a consulta pela placa do carro principal e confira os apontamentos.', a: 'Qualquer apontamento: pare e avise o gestor.' },
+    { t: 'ATPV do carro principal', o: 'Emita o ATPV do carro principal só depois que todos os pagamentos estiverem ok.', req: [7, 8] },
+    { t: 'Liberar o carro', o: 'Com tudo pago e o ATPV emitido, o carro pode sair.', req: [10], marco: 'Venda concluída' }] }
+];
+const KB_PASSOS = KB_TROCA.flatMap((f, fi) => f.passos.map(p => ({ ...p, fi })));
+const KB_ALERTAS = [
+  ['Alienação fiduciária', 'O carro ainda está financiado em nome de um banco.', 'Pedir o saldo de quitação. A quitação precisa estar baixada antes do ATPV.', '--warn'],
+  ['Leilão', 'O carro passou por leilão.', 'Avisar o gestor e reavaliar o valor.', '--warn'],
+  ['Histórico de roubo ou furto', 'Registro de roubo ou furto, mesmo recuperado.', 'Avisar o gestor antes de seguir.', '--crit'],
+  ['Sinistro', 'Batida grave ou indenização de seguradora.', 'Avisar o gestor. O laudo cautelar precisa confirmar a estrutura.', '--warn'],
+  ['Remarcação de chassi ou motor', 'Numeração regravada.', 'Avisar o gestor antes de seguir.', '--crit'],
+  ['Restrição judicial, administrativa ou bloqueio', 'O carro não pode ser transferido enquanto houver a restrição.', 'Parar. Só segue com a restrição baixada.', '--crit'],
+  ['Multas e débitos (IPVA, licenciamento)', 'Valores em aberto na placa.', 'No carro na troca, somar à diferença que o cliente paga.', '--s1']
+];
+const kbChave = () => 'kb_troca_' + S.eu.nome;
+function kbDados() {
+  if (S.kb && S.kbDe === S.eu.nome) return S.kb;
+  let d = null; try { d = JSON.parse(lsGet(kbChave()) || 'null'); } catch (e) {}
+  if (!d || !Array.isArray(d.vendas) || !d.vendas.length) d = { atual: 'v1', vendas: [{ id: 'v1', nome: '', feitos: [], calc: {} }] };
+  S.kb = d; S.kbDe = S.eu.nome; S.kbAbertos = new Set(); S.kbAviso = null; return d;
+}
+const kbVenda = () => { const d = kbDados(); return d.vendas.find(v => v.id === d.atual) || d.vendas[0]; };
+const kbSalvar = () => lsSet(kbChave(), JSON.stringify(S.kb));
+function viewBase() {
+  limparGraficos();
+  const eu = S.eu; $('#chip').textContent = eu.nome;
+  const d = kbDados(), v = kbVenda(), feitos = new Set(v.feitos), atual = KB_PASSOS.findIndex((p, i) => !feitos.has(i));
+  const n = feitos.size, total = KB_PASSOS.length, faseAtual = atual >= 0 ? KB_TROCA[KB_PASSOS[atual].fi].fase : 'Concluída';
+  const passo = (p, i) => {
+    const feito = feitos.has(i), aberto = i === atual || S.kbAbertos.has(i) || S.kbAviso === i;
+    const falta = (p.req || []).filter(r => !feitos.has(r));
+    return `<div class="kb-passo${feito ? ' feito' : ''}${i === atual ? ' atual' : ''}">
+      <button class="kb-num" onclick="kbMarcar(${i})" aria-pressed="${feito}" aria-label="${feito ? 'Desmarcar' : 'Marcar como feito'}: passo ${i + 1}">${feito ? '✓' : i + 1}</button>
+      <div class="kb-corpo"><button class="kb-t" onclick="kbAbrir(${i})" aria-expanded="${aberto}">${esc(p.t)}${i === atual ? '<span class="kb-tag">Você está aqui</span>' : ''}${feito && p.marco ? `<span class="kb-tag ok">${p.marco}</span>` : ''}</button>
+        ${aberto ? `<div class="kb-o">${esc(p.o)}</div>
+          ${p.a ? `<div class="kb-alerta">⚠️ ${esc(p.a)}</div>` : ''}
+          ${S.kbAviso === i && falta.length ? `<div class="kb-trava">Ainda não: antes conclua o${falta.length > 1 ? 's passos' : ' passo'} ${falta.map(r => r + 1).join(' e ')}.</div>` : ''}
+          ${!feito && i === atual ? `<div class="kb-acao"><button class="btn pri" onclick="kbMarcar(${i})">Feito, próximo passo →</button></div>` : ''}` : ''}
+      </div></div>`;
+  };
+  let gi = 0;
+  const fases = KB_TROCA.map(f => {
+    const ini = gi; gi += f.passos.length;
+    const fFeitos = f.passos.filter((_, k) => feitos.has(ini + k)).length;
+    return `<div class="kb-fase" style="--fc:var(${f.cor})"><h4>${esc(f.fase)} <small>${fFeitos}/${f.passos.length}</small></h4><p>${esc(f.resumo)}</p>
+      ${f.passos.map((p, k) => passo(p, ini + k)).join('')}</div>`;
+  }).join('');
+  $('#app').innerHTML = `<div class="cab"><div><h1>Base de conhecimento</h1>
+      <div class="sub">Guias práticos para seguir no dia a dia, passo a passo</div></div>
+      <span class="esp"></span>
+      <button class="btn" onclick="sair()">Sair</button></div>
+    ${abas()}
+    <div class="kb-topicos"><span class="kb-topico">🚗 Venda com carro na troca</span><span class="kb-topico breve">Mais guias em breve</span></div>
+    <div class="kb-grid">
+      <div class="card"><h3>Venda com carro na troca · 12 passos</h3>
+        <p class="sub">Toque no número para marcar como feito. O próximo passo fica destacado. O progresso fica salvo só neste aparelho.</p>
+        <div class="kb-venda">
+          <select class="inp" onchange="kbTrocar(this.value)" aria-label="Venda">${d.vendas.map((x, k) => `<option value="${x.id}"${x.id === v.id ? ' selected' : ''}>${esc(x.nome || 'Venda ' + (k + 1))}</option>`).join('')}</select>
+          <input class="inp" value="${esc(v.nome)}" placeholder="Nome do cliente ou placa" oninput="kbNome(this.value)" aria-label="Nome do cliente ou placa">
+          <button class="btn" onclick="kbNova()">+ Nova venda</button>
+          <button class="btn" onclick="kbExcluir()">Excluir</button>
+        </div>
+        <div class="bar"><span style="width:${n / total * 100}%;background:var(--good)"></span></div>
+        <div class="kb-prog"><span><b>${n}</b> de ${total} passos</span><span>${esc(faseAtual)}</span></div>
+        ${fases}
+        ${atual < 0 ? '<div class="kb-fim">✓ Venda concluída: carro liberado</div>' : ''}
+      </div>
+      <div class="kb-lado">
+        <div class="card"><h3>Calculadora da diferença</h3><p class="sub">Quanto o cliente paga, já com multas e débitos do carro na troca</p>
+          <label class="campo"><span>Preço do carro principal (R$)</span><input class="inp" id="kbP" inputmode="numeric" placeholder="0" value="${v.calc.p || ''}" oninput="kbCalc()"></label>
+          <label class="campo"><span>Valor do carro na troca (R$)</span><input class="inp" id="kbT" inputmode="numeric" placeholder="0" value="${v.calc.t || ''}" oninput="kbCalc()"></label>
+          <label class="campo"><span>Multas e débitos do Cardados (R$)</span><input class="inp" id="kbD" inputmode="numeric" placeholder="0" value="${v.calc.d || ''}" oninput="kbCalc()"></label>
+          <label class="campo"><span>Já recebido: entrada ou sinal (R$)</span><input class="inp" id="kbE" inputmode="numeric" placeholder="0" value="${v.calc.e || ''}" oninput="kbCalc()"></label>
+          <div id="kbRes"></div></div>
+        <div class="card"><h3>Alertas do Cardados</h3><p class="sub">Vale para as duas consultas (passos 2 e 10). Toque para ver o que fazer.</p>
+          ${KB_ALERTAS.map(([nm, sig, faz, c]) => `<details class="kb-al"><summary><span class="kb-dot" style="background:var(${c})"></span>${esc(nm)}</summary><div>${esc(sig)}<br><b>O que fazer:</b> ${esc(faz)}</div></details>`).join('')}
+          <div class="t-s" style="margin-top:10px">Na dúvida, pare e fale com o gestor antes de seguir.</div></div>
+      </div>
+    </div>`;
+  kbResultado();
+}
+function kbResultado() {
+  const c = kbVenda().calc, dif = (c.p || 0) - (c.t || 0) + (c.d || 0), falta = dif - (c.e || 0);
+  $('#kbRes').innerHTML = `<div class="res-l"><span>Diferença a pagar<br><small style="color:var(--muted)">preço − troca + multas e débitos</small></span><b>${brl(dif)}</b></div>
+    <div class="res-total"><span>Falta receber</span><b style="color:${falta > 0 ? 'var(--ink)' : 'var(--good-ink)'}">${brl(Math.max(0, falta))}</b></div>
+    ${falta < 0 ? `<div class="t-s"><span class="st st-warn">Recebido ${brl(-falta)} a mais que a diferença</span></div>` : ''}`;
+}
+function kbCalc() { const v = kbVenda(); v.calc = { p: numero($('#kbP').value), t: numero($('#kbT').value), d: numero($('#kbD').value), e: numero($('#kbE').value) }; kbSalvar(); kbResultado(); }
+function kbMarcar(i) {
+  const v = kbVenda(), f = new Set(v.feitos);
+  if (f.has(i)) f.delete(i);
+  else {
+    const falta = (KB_PASSOS[i].req || []).filter(r => !f.has(r));
+    if (falta.length) { S.kbAviso = i; return viewBase(); }
+    f.add(i);
+  }
+  S.kbAviso = null; v.feitos = [...f].sort((a, b) => a - b); kbSalvar(); viewBase();
+}
+function kbAbrir(i) { const a = S.kbAbertos; a.has(i) ? a.delete(i) : a.add(i); viewBase(); }
+function kbNome(t) { kbVenda().nome = t.slice(0, 60); kbSalvar(); const o = document.querySelector('.kb-venda select option:checked'); if (o) o.textContent = t || 'Venda'; }
+function kbTrocar(id) { S.kb.atual = id; S.kbAbertos = new Set(); S.kbAviso = null; kbSalvar(); viewBase(); }
+function kbNova() { const d = kbDados(), id = 'v' + Date.now(); d.vendas.push({ id, nome: '', feitos: [], calc: {} }); kbTrocar(id); }
+function kbExcluir() {
+  const d = kbDados(), v = kbVenda();
+  if (!confirm(`Excluir "${v.nome || 'esta venda'}" e o progresso dela?`)) return;
+  d.vendas = d.vendas.filter(x => x.id !== v.id);
+  if (!d.vendas.length) d.vendas.push({ id: 'v' + Date.now(), nome: '', feitos: [], calc: {} });
+  kbTrocar(d.vendas[0].id);
 }
 
 // contato semanal com os proprietários (gerado toda semana pelo Claude). A lista traz todos os carros do estoque;
