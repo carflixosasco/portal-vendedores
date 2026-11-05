@@ -172,6 +172,7 @@ tr:last-child td { border-bottom: 0; }
 .kb-tag.ok { color: var(--good-ink); background: color-mix(in srgb, var(--good) 14%, transparent); }
 .kb-o { font-size: 14px; color: var(--ink2); margin-top: 4px; }
 .kb-alerta { font-size: 13px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--ink); }
+.kb-nota { font-size: 13px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--brand-soft); color: var(--ink); font-weight: 600; }
 .kb-trava { font-size: 13px; margin-top: 8px; color: var(--crit); font-weight: 600; }
 .kb-acao { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .kb-acao .btn { font-size: 13px; padding: 6px 12px; }
@@ -655,14 +656,14 @@ const KB_TROCA = [
     { t: 'Assinatura contrato carro principal', o: 'Recolha a assinatura do contrato do carro principal e o pagamento da entrada ou do sinal. Depois disso, libere o cliente.', marco: 'Cliente liberado' }] },
   { fase: 'Fase 2 · Carro na troca', cor: '--s4', resumo: 'O carro na troca precisa estar pago e com o ATPV emitido.', passos: [
     { t: 'Laudo cautelar do carro na troca', o: 'Peça o laudo cautelar logo no começo desta fase e espere o resultado.', a: 'Laudo com apontamento grave? Avise o gestor antes de seguir.' },
-    { t: 'Conferir pagamento do carro na troca', o: 'Confira se o pagamento da diferença total e dos débitos do carro na troca foi feito. A calculadora mostra o valor.' },
-    { t: 'ATPV do carro na troca', o: 'Emita o ATPV do carro na troca só depois que todos os pagamentos estiverem efetivados.', req: [5] }] },
+    { t: 'Conferir pagamento do carro na troca', o: 'Consulte se o parceiro já efetivou o pagamento do carro na troca.' },
+    { t: 'ATPV do carro na troca', o: 'Emita o ATPV do carro na troca só depois que todos os pagamentos estiverem efetivados.', n: 'Peça uma foto do ATPV assinado e com firma reconhecida em cartório.', req: [5] }] },
   { fase: 'Fase 3 · Carro principal', cor: '--s3', resumo: 'O carro só sai com todos os pagamentos ok e o ATPV emitido.', passos: [
     { t: 'Consolidar todos os pagamentos do carro principal', o: 'Enquanto o cliente assina o ATPV do carro na troca, consolide todos os pagamentos do carro principal.' },
     { t: 'Assinatura do contrato de financiamento', o: 'Se a venda tiver financiamento, peça a assinatura do contrato de financiamento. Sem financiamento, é só marcar e seguir.' },
     { t: 'Consulta Cardados do carro principal', o: 'Puxe a consulta pela placa do carro principal e confira os apontamentos.', a: 'Qualquer apontamento: pare e avise o gestor.' },
     { t: 'Validar com o financeiro os pagamentos', o: 'Confirme com o financeiro que todos os pagamentos do carro principal entraram.', req: [7, 8] },
-    { t: 'ATPV do carro principal', o: 'Emita o ATPV do carro principal só depois que o financeiro validar os pagamentos.', req: [10] },
+    { t: 'ATPV do carro principal', o: 'Emita o ATPV do carro principal só depois que o financeiro validar os pagamentos.', n: 'Peça uma foto do ATPV assinado e com firma reconhecida em cartório.', req: [10] },
     { t: 'Liberar o carro', o: 'Com tudo pago e o ATPV emitido, o carro pode sair.', req: [11], marco: 'Venda concluída' }] }
 ];
 // adicionais que o vendedor pode incluir na calculadora (somam ao valor total da compra)
@@ -700,6 +701,7 @@ function viewBase() {
       <button class="kb-num" onclick="kbMarcar(${i})" aria-pressed="${feito}" aria-label="${feito ? 'Desmarcar' : 'Marcar como feito'}: passo ${i + 1}">${feito ? '✓' : i + 1}</button>
       <div class="kb-corpo"><button class="kb-t" onclick="kbAbrir(${i})" aria-expanded="${aberto}">${esc(p.t)}${i === atual ? '<span class="kb-tag">Você está aqui</span>' : ''}${feito && p.marco ? `<span class="kb-tag ok">${p.marco}</span>` : ''}</button>
         ${aberto ? `<div class="kb-o">${esc(p.o)}</div>
+          ${p.n ? `<div class="kb-nota">📸 ${esc(p.n)}</div>` : ''}
           ${p.a ? `<div class="kb-alerta">⚠️ ${esc(p.a)}</div>` : ''}
           ${S.kbAviso === i && falta.length ? `<div class="kb-trava">Ainda não: antes conclua o${falta.length > 1 ? 's passos' : ' passo'} ${falta.map(r => r + 1).join(' e ')}.</div>` : ''}
           ${!feito && i === atual ? `<div class="kb-acao"><button class="btn pri" onclick="kbMarcar(${i})">Feito, próximo passo →</button></div>` : ''}` : ''}
