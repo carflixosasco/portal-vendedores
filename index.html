@@ -764,7 +764,7 @@ function viewBase() {
     const falta = (p.req || []).filter(r => !feitos.has(r));
     const ob = (v.obs || {})[i], editando = S.kbObs.has(i);
     const obsHtml = editando
-      ? `<div class="kb-obs-ed"><textarea class="inp" id="kbObs_${i}" rows="2" maxlength="500" placeholder="Ex.: Cliente já foi ao cartório, mas estava fechado." oninput="kbObsTexto(${i}, this.value)">${esc(ob ? ob.t : '')}</textarea>
+      ? `<div class="kb-obs-ed"><textarea class="inp" id="kbObs_${i}" rows="2" maxlength="500" placeholder="Escreva uma observação sobre esta etapa" oninput="kbObsTexto(${i}, this.value)">${esc(ob ? ob.t : '')}</textarea>
           <div class="kb-acao"><button class="btn" onclick="kbObsAbrir(${i}, false)">Pronto</button>${ob ? `<button class="btn" onclick="kbObsApagar(${i})">Apagar observação</button>` : ''}</div></div>`
       : ob ? `<div class="kb-obs" onclick="kbObsAbrir(${i}, true)" title="Toque para editar">📝 ${esc(ob.t)}<small>${ob.em ? dataHora(ob.em) + ' · ' : ''}toque para editar</small></div>` : '';
     return `<div class="kb-passo${feito ? ' feito' : ''}${i === atual ? ' atual' : ''}">
