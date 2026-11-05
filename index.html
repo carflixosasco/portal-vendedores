@@ -651,26 +651,27 @@ function viewOperacional() {
 const KB_TROCA = [
   { fase: 'Fase 1 · Fechamento com o cliente', cor: '--s1', resumo: 'Contrato assinado, entrada ou sinal pago e cliente liberado. O carro principal ainda não sai.', passos: [
     { t: 'Contrato do carro principal', o: 'Passe o contrato do carro que está sendo vendido.' },
-    { t: 'Consulta Cardados do carro na troca', o: 'Puxe a consulta pela placa do carro na troca. Multas e débitos encontrados entram na conta do cliente (anote na calculadora).', a: 'Apareceu alienação, leilão, roubo ou furto, sinistro, remarcação ou restrição? Pare e avise o gestor antes de seguir.' },
+    { t: 'Consulta Cardados do carro na troca', o: 'Puxe a consulta pela placa do carro na troca. Multas e débitos encontrados entram na conta do cliente (anote na calculadora).', a: 'Apareceu leilão, roubo ou furto, sinistro, remarcação ou restrição? Pare e avise o gestor antes de seguir. Se aparecer financiamento (alienação), siga o próximo passo.' },
+    { t: 'Carro na troca financiado? Boleto de quitação e extrato', o: 'Se o carro na troca tiver financiamento, peça ao comprador o boleto de quitação e o extrato das parcelas pagas. Lance o valor do boleto na calculadora em "+ Quitação do financiamento". Sem financiamento, é só marcar e seguir.' },
     { t: 'Recolher a entrada e as dívidas do carro na troca', o: 'Receba a entrada e o pagamento das multas e débitos que apareceram no Cardados do carro na troca.' },
     { t: 'Assinatura contrato carro principal', o: 'Recolha a assinatura do contrato do carro principal e o pagamento da entrada ou do sinal. Depois disso, libere o cliente.', marco: 'Cliente liberado' }] },
   { fase: 'Fase 2 · Carro na troca', cor: '--s4', resumo: 'O carro na troca precisa estar pago e com o ATPV emitido.', passos: [
     { t: 'Laudo cautelar do carro na troca', o: 'Peça o laudo cautelar logo no começo desta fase e espere o resultado.', a: 'Laudo com apontamento grave? Avise o gestor antes de seguir.' },
     { t: 'Conferir pagamento do carro na troca', o: 'Consulte se o parceiro já efetivou o pagamento do carro na troca.' },
-    { t: 'ATPV do carro na troca', o: 'Emita o ATPV do carro na troca só depois que todos os pagamentos estiverem efetivados.', n: 'Peça uma foto do ATPV assinado e com firma reconhecida em cartório.', req: [5] }] },
+    { t: 'ATPV do carro na troca', o: 'Emita o ATPV do carro na troca só depois que todos os pagamentos estiverem efetivados.', n: 'Peça uma foto do ATPV assinado e com firma reconhecida em cartório.', req: [6] }] },
   { fase: 'Fase 3 · Carro principal', cor: '--s3', resumo: 'O carro só sai com todos os pagamentos ok e o ATPV emitido.', passos: [
     { t: 'Consolidar todos os pagamentos do carro principal', o: 'Enquanto o cliente assina o ATPV do carro na troca, consolide todos os pagamentos do carro principal.' },
     { t: 'Assinatura do contrato de financiamento', o: 'Se a venda tiver financiamento, peça a assinatura do contrato de financiamento. Sem financiamento, é só marcar e seguir.' },
     { t: 'Consulta Cardados do carro principal', o: 'Puxe a consulta pela placa do carro principal e confira os apontamentos.', a: 'Qualquer apontamento: pare e avise o gestor.' },
-    { t: 'Validar com o financeiro os pagamentos', o: 'Confirme com o financeiro que todos os pagamentos do carro principal entraram.', req: [7, 8] },
-    { t: 'ATPV do carro principal', o: 'Emita o ATPV do carro principal só depois que o financeiro validar os pagamentos.', n: 'Peça uma foto do ATPV assinado e com firma reconhecida em cartório.', req: [10] },
-    { t: 'Liberar o carro', o: 'Com tudo pago e o ATPV emitido, o carro pode sair.', req: [11], marco: 'Venda concluída' }] }
+    { t: 'Validar com o financeiro os pagamentos', o: 'Confirme com o financeiro que todos os pagamentos do carro principal entraram.', req: [8, 9] },
+    { t: 'ATPV do carro principal', o: 'Emita o ATPV do carro principal só depois que o financeiro validar os pagamentos.', n: 'Peça uma foto do ATPV assinado e com firma reconhecida em cartório.', req: [11] },
+    { t: 'Liberar o carro', o: 'Com tudo pago e o ATPV emitido, o carro pode sair.', req: [12], marco: 'Venda concluída' }] }
 ];
 // adicionais que o vendedor pode incluir na calculadora (somam ao valor total da compra)
 const KB_ADIC = ['Despachante', 'Gestauto', 'Polimento'];
 const KB_PASSOS = KB_TROCA.flatMap((f, fi) => f.passos.map(p => ({ ...p, fi })));
 const KB_ALERTAS = [
-  ['Alienação fiduciária', 'O carro ainda está financiado em nome de um banco.', 'Pedir o saldo de quitação. A quitação precisa estar baixada antes do ATPV.', '--warn'],
+  ['Alienação fiduciária', 'O carro ainda está financiado em nome de um banco.', 'Pedir ao comprador o boleto de quitação e o extrato das parcelas pagas (passo 3). Lançar a quitação na calculadora. A quitação precisa estar baixada antes do ATPV.', '--warn'],
   ['Leilão', 'O carro passou por leilão.', 'Avisar o gestor e reavaliar o valor.', '--warn'],
   ['Histórico de roubo ou furto', 'Registro de roubo ou furto, mesmo recuperado.', 'Avisar o gestor antes de seguir.', '--crit'],
   ['Sinistro', 'Batida grave ou indenização de seguradora.', 'Avisar o gestor. O laudo cautelar precisa confirmar a estrutura.', '--warn'],
@@ -682,9 +683,12 @@ const kbChave = () => 'kb_troca_' + S.eu.nome;
 function kbDados() {
   if (S.kb && S.kbDe === S.eu.nome) return S.kb;
   let d = null; try { d = JSON.parse(lsGet(kbChave()) || 'null'); } catch (e) {}
-  if (!d || !Array.isArray(d.vendas) || !d.vendas.length) d = { ver: 2, atual: 'v1', vendas: [{ id: 'v1', nome: '', feitos: [], calc: {} }] };
-  // versão 2 ganhou o passo 11 (validar com o financeiro): os passos marcados a partir dele andam uma posição
-  if (d.ver !== 2) { d.vendas.forEach(v => { v.feitos = (v.feitos || []).map(i => i >= 10 ? i + 1 : i); }); d.ver = 2; }
+  if (!d || !Array.isArray(d.vendas) || !d.vendas.length) d = { ver: 3, atual: 'v1', vendas: [{ id: 'v1', nome: '', feitos: [], calc: {} }] };
+  // quando um passo novo entra no meio, os passos já marcados depois dele andam uma posição
+  // v2: passo 11 (validar com o financeiro) · v3: passo 3 (quitação do financiamento do carro na troca)
+  const anda = (de) => d.vendas.forEach(v => { v.feitos = (v.feitos || []).map(i => i >= de ? i + 1 : i); });
+  if (!d.ver || d.ver < 2) { anda(10); d.ver = 2; }
+  if (d.ver < 3) { anda(2); d.ver = 3; }
   S.kb = d; S.kbDe = S.eu.nome; S.kbAbertos = new Set(); S.kbAviso = null; return d;
 }
 const kbVenda = () => { const d = kbDados(); return d.vendas.find(v => v.id === d.atual) || d.vendas[0]; };
@@ -741,9 +745,11 @@ function viewBase() {
           ${KB_ADIC.some(a => !(a in (v.calc.x || {}))) ? `<div class="campo"><span>Adicionais na compra (opcional)</span><div class="atalhos" style="margin-top:0">${KB_ADIC.filter(a => !(a in (v.calc.x || {}))).map(a => `<button class="btn" onclick="kbAdic('${a}', true)">+ ${a}</button>`).join('')}</div></div>` : ''}
           <label class="campo"><span>Valor do carro na troca (R$)</span><input class="inp" id="kbT" inputmode="numeric" placeholder="0" value="${v.calc.t || ''}" oninput="kbCalc()"></label>
           <label class="campo"><span>Multas e débitos do Cardados (R$)</span><input class="inp" id="kbD" inputmode="numeric" placeholder="0" value="${v.calc.d || ''}" oninput="kbCalc()"></label>
+          ${v.calc.qOn ? `<label class="campo"><span class="kb-adl">Quitação do financiamento do carro na troca (R$) <button class="kb-x" onclick="event.preventDefault();kbQuit(false)" aria-label="Remover quitação">✕ remover</button></span><input class="inp" id="kbQ" inputmode="numeric" placeholder="valor do boleto de quitação" value="${v.calc.q || ''}" oninput="kbCalc()"></label>`
+            : `<div class="campo"><span>Carro na troca financiado? (débito)</span><div class="atalhos" style="margin-top:0"><button class="btn" onclick="kbQuit(true)">+ Quitação do financiamento</button></div></div>`}
           <label class="campo"><span>Já recebido: entrada ou sinal (R$)</span><input class="inp" id="kbE" inputmode="numeric" placeholder="0" value="${v.calc.e || ''}" oninput="kbCalc()"></label>
           <div id="kbRes"></div></div>
-        <div class="card"><h3>Alertas do Cardados</h3><p class="sub">Vale para as duas consultas (passos 2 e 10). Toque para ver o que fazer.</p>
+        <div class="card"><h3>Alertas do Cardados</h3><p class="sub">Vale para as duas consultas (passos 2 e 11). Toque para ver o que fazer.</p>
           ${KB_ALERTAS.map(([nm, sig, faz, c]) => `<details class="kb-al"><summary><span class="kb-dot" style="background:var(${c})"></span>${esc(nm)}</summary><div>${esc(sig)}<br><b>O que fazer:</b> ${esc(faz)}</div></details>`).join('')}
           <div class="t-s" style="margin-top:10px">Na dúvida, pare e fale com o gestor antes de seguir.</div></div>
       </div>
@@ -752,17 +758,24 @@ function viewBase() {
 }
 function kbResultado() {
   const c = kbVenda().calc, x = c.x || {}, adic = Object.values(x).reduce((s, n) => s + (n || 0), 0);
-  const compra = (c.p || 0) + adic, dif = compra - (c.t || 0) + (c.d || 0), falta = dif - (c.e || 0);
+  const quit = c.qOn ? (c.q || 0) : 0;
+  const compra = (c.p || 0) + adic, dif = compra - (c.t || 0) + (c.d || 0) + quit, falta = dif - (c.e || 0);
   $('#kbRes').innerHTML = `${adic ? `<div class="res-l"><span>Total da compra<br><small style="color:var(--muted)">carro principal + ${esc(Object.keys(x).join(', ').toLowerCase())}</small></span><b>${brl(compra)}</b></div>` : ''}
-    <div class="res-l"><span>Diferença a pagar<br><small style="color:var(--muted)">${adic ? 'total da compra' : 'preço'} − troca + multas e débitos</small></span><b>${brl(dif)}</b></div>
+    <div class="res-l"><span>Diferença a pagar<br><small style="color:var(--muted)">${adic ? 'total da compra' : 'preço'} − troca + multas e débitos${c.qOn ? ' + quitação do financiamento' : ''}</small></span><b>${brl(dif)}</b></div>
     <div class="res-total"><span>Falta receber</span><b style="color:${falta > 0 ? 'var(--ink)' : 'var(--good-ink)'}">${brl(Math.max(0, falta))}</b></div>
     ${falta < 0 ? `<div class="t-s"><span class="st st-warn">Recebido ${brl(-falta)} a mais que a diferença</span></div>` : ''}`;
 }
 function kbCalc() {
   const v = kbVenda(), x = {};
   document.querySelectorAll('[data-adic]').forEach(el => { x[el.dataset.adic] = numero(el.value); });
-  v.calc = { p: numero($('#kbP').value), t: numero($('#kbT').value), d: numero($('#kbD').value), e: numero($('#kbE').value), x };
+  const q = $('#kbQ');
+  v.calc = { p: numero($('#kbP').value), t: numero($('#kbT').value), d: numero($('#kbD').value), e: numero($('#kbE').value), x, qOn: !!q, q: q ? numero(q.value) : 0 };
   kbSalvar(); kbResultado();
+}
+// débito da quitação do financiamento do carro na troca (valor do boleto de quitação)
+function kbQuit(incluir) {
+  const v = kbVenda(); v.calc = { ...v.calc, qOn: incluir, q: incluir ? (v.calc.q || 0) : 0 }; kbSalvar(); viewBase();
+  if (incluir) { const el = $('#kbQ'); if (el) el.focus(); }
 }
 // inclui ou tira um adicional da calculadora (só aparece o campo de quem o vendedor escolheu)
 function kbAdic(a, incluir) {
