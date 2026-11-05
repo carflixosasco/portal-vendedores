@@ -145,6 +145,16 @@ tr:last-child td { border-bottom: 0; }
 .ct-sub { font-size: 13px; color: var(--ink2); margin-top: 4px; }
 .ct-msg { white-space: pre-wrap; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
 
+/* filtro do gráfico de leads por veículo */
+.vf { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.vf .inp { width: auto; font-size: 14px; padding: 7px 10px; }
+.vf-q { flex: 1 1 200px; }
+.vf-o { flex: 0 1 220px; }
+.vf-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.vf-chips .btn { font-size: 13px; padding: 5px 10px; border-radius: 999px; }
+.vf-chips .btn.on { background: var(--brand); color: var(--brand-ink); border-color: transparent; font-weight: 600; }
+.vf-n { font-size: 13px; color: var(--ink2); margin: 4px 0 8px; }
+
 /* base de conhecimento: guia da venda com carro na troca */
 .kb-topicos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .kb-topico { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--brand); background: var(--brand-soft); color: var(--ink); border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 14px; }
@@ -615,8 +625,9 @@ function viewOperacional() {
   limparGraficos();
   const eu = S.eu, op = eu.operacional || { inicio: '', veiculos: [] };
   $('#chip').textContent = eu.nome;
-  const lw = op.veiculos.slice().sort((a, b) => b.n - a.n || b.ml - a.ml || a.rot.localeCompare(b.rot));
+  const lw = op.veiculos.slice();
   const semLead = lw.filter(x => x.wm && !x.n).length;
+  S.opLw = lw; S.opF = S.opF || { q: '', f: 'todos', o: 'wm' };
   $('#app').innerHTML = `<div class="cab"><div><h1>Operacional</h1>
       <div class="sub">Procura de cada carro do estoque nos portais · atualizado em ${dataBR(eu.hoje)}</div></div>
       <span class="esp"></span>
@@ -624,10 +635,44 @@ function viewOperacional() {
     ${abas()}
     <div class="card full"><h3>Leads por veículo em estoque · Webmotors e Mercado Livre</h3>
       <p class="sub">${lw.length ? `<b>Webmotors (pago por lead, prioridade): ${int(soma(lw, x => x.n))} leads</b> · Mercado Livre (plano fixo): ${int(soma(lw, x => x.ml))} leads · desde ${dataBR(op.inicio)} · ${lw.length} veículos ainda em estoque · cruzamento pela placa · ordenado pelos leads da Webmotors · em vermelho: mais de ${LIMITE_LEADS_WM} leads da Webmotors<br><b style="color:var(--s1)">● nome em azul: anunciado na Webmotors agora</b> (${int(lw.filter(x => x.wm).length)} carros)` : 'Sem dados de estoque ainda.'}</p>
-      ${lw.length ? `<div class="ch" style="height:${Math.max(180, lw.length * 34 + 60)}px"><canvas id="gLeadsWm" role="img" aria-label="Leads da Webmotors e do Mercado Livre por veículo em estoque"></canvas></div>` : ''}
+      ${lw.length ? filtroVeiculos(S.opF, 'opFiltro') + '<div id="opGraf"></div>' : ''}
       ${semLead ? `<div class="t-s" style="margin-top:8px"><span class="st st-warn">${int(semLead)} veículo(s) publicado(s) na Webmotors ainda sem lead</span></div>` : ''}
     </div>
     ${blocoContatos()}`;
+  opGrafico();
+}
+// filtro do gráfico de leads por veículo: busca por modelo/placa, recortes rápidos e ordem
+const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const VEIC_RECORTES = { todos: ['Todos', () => true], wm: ['Na Webmotors', x => x.wm], fora: ['Fora da Webmotors', x => !x.wm],
+  semlead: ['Sem lead na Webmotors', x => x.wm && !x.n], muitos: [`Mais de ${LIMITE_LEADS_WM} leads WM`, x => x.n > LIMITE_LEADS_WM], nenhum: ['Nenhum lead', x => !x.n && !x.ml] };
+const VEIC_ORDENS = { wm: ['Leads Webmotors', (a, b) => b.n - a.n || b.ml - a.ml], total: ['Total de leads', (a, b) => (b.n + b.ml) - (a.n + a.ml) || b.n - a.n],
+  ml: ['Leads Mercado Livre', (a, b) => b.ml - a.ml || b.n - a.n], menos: ['Menos leads primeiro', (a, b) => (a.n + a.ml) - (b.n + b.ml) || a.n - b.n] };
+function filtroVeiculos(F, fn) {
+  return `<div class="vf">
+    <input class="inp vf-q" type="search" placeholder="Buscar modelo ou placa" value="${esc(F.q)}" oninput="${fn}('q', this.value)" aria-label="Buscar veículo por modelo ou placa">
+    <select class="inp vf-o" onchange="${fn}('o', this.value)" aria-label="Ordenar por">${Object.entries(VEIC_ORDENS).map(([k, [t]]) => `<option value="${k}"${F.o === k ? ' selected' : ''}>Ordenar: ${t}</option>`).join('')}</select>
+    <div class="vf-chips">${Object.entries(VEIC_RECORTES).map(([k, [t]]) => `<button class="btn${F.f === k ? ' on' : ''}" aria-pressed="${F.f === k}" onclick="${fn}('f', '${k}')">${t}</button>`).join('')}</div>
+  </div>`;
+}
+function filtrarVeiculos(lw, F) {
+  const q = semAcento(F.q).trim(), rec = (VEIC_RECORTES[F.f] || VEIC_RECORTES.todos)[1], ord = (VEIC_ORDENS[F.o] || VEIC_ORDENS.wm)[1];
+  // placa com ou sem hífen: "abc1234" e "abc-1234" acham ABC-1234
+  const termos = q ? q.split(/\s+/).map(p => p.replace(/-/g, '')) : [];
+  const texto = x => { const s = semAcento(x.rot); return s + ' ' + s.replace(/[^a-z0-9]/g, ''); };
+  return lw.filter(x => rec(x) && termos.every(p => texto(x).includes(p)))
+    .sort((a, b) => ord(a, b) || a.rot.localeCompare(b.rot));
+}
+function opFiltro(k, v) {
+  S.opF[k] = v;
+  if (k !== 'q') document.querySelectorAll('.vf-chips .btn').forEach(b => { const on = b.getAttribute('onclick').includes(`'${S.opF.f}'`); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  opGrafico();
+}
+function opGrafico() {
+  const box = document.getElementById('opGraf'); if (!box) return;
+  if (charts.gLeadsWm) { charts.gLeadsWm.destroy(); delete charts.gLeadsWm; }
+  const lw = filtrarVeiculos(S.opLw, S.opF), tot = S.opLw.length;
+  box.innerHTML = `<div class="vf-n">${lw.length === tot ? `${int(tot)} carros` : `<b>${int(lw.length)}</b> de ${int(tot)} carros · ${int(soma(lw, x => x.n))} leads Webmotors · ${int(soma(lw, x => x.ml))} Mercado Livre`}</div>`
+    + (lw.length ? `<div class="ch" style="height:${Math.max(140, lw.length * 34 + 60)}px"><canvas id="gLeadsWm" role="img" aria-label="Leads da Webmotors e do Mercado Livre por veículo em estoque"></canvas></div>` : '<div class="vazio">Nenhum carro com esse filtro.</div>');
   const el = document.getElementById('gLeadsWm'); if (!el) return;
   Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   charts.gLeadsWm = new Chart(el, {
